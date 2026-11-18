@@ -1,0 +1,1714 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Parsel Madeni</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Düzen: üstte durum ve araç çubuğu, solda canlı arazi haritası (canvas), sağda parsel paneli;
+   altta grafik, günlük ve görevler. Satış Ofisi tam ekran penceredir. Tek tema: gece sahasındaki maden ofisi. */
+:root {
+  --bg: #0c110f;
+  --surface: #141c18;
+  --surface-2: #1b2621;
+  --line: #2a382f;
+  --ink: #e8eee4;
+  --muted: #8fa196;
+  --ore: #f2b441;
+  --ore-ink: #2a1c00;
+  --scan: #5fd3b0;
+  --loss: #ef6a5b;
+  --gain: #8fdc7a;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --t-kiyi: #3b7f80; --t-vadi: #3f6b34; --t-dag: #5a5048; --t-col: #b08a4a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 400 14px/1.45 var(--font-display);
+  padding-block: 14px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:focus-visible, select:focus-visible, canvas:focus-visible { outline: 2px solid var(--scan); outline-offset: 2px; }
+.wrap { max-width: 1200px; margin: 0 auto; display: grid; gap: 14px; }
+.pos { color: var(--gain); } .neg { color: var(--loss); }
+
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+h1 { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; }
+h1 small { display: block; font: 600 0.68rem var(--font-mono); letter-spacing: 0.14em; color: var(--ore); text-transform: uppercase; margin-bottom: 2px; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; min-width: 112px; }
+.stat span { display: block; font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.stat b { font: 600 1.05rem var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.toolbar .grow { flex: 1; min-width: 8px; }
+.lbl { font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { background: transparent; border: 0; padding: 6px 12px; font: 600 0.8rem var(--font-mono); color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--ore); color: var(--ore-ink); }
+.btn { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; font-weight: 600; }
+.btn:hover:not(:disabled) { border-color: var(--ore); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--ore); color: var(--ore-ink); border-color: var(--ore); }
+.btn.danger { color: var(--loss); }
+.btn.scan { color: var(--scan); }
+.btn.sm { padding: 4px 9px; font-size: 0.82rem; }
+.market { display: flex; align-items: center; gap: 10px; }
+.market b { font: 600 1rem var(--font-mono); }
+canvas#spark { width: 110px; height: 32px; display: block; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(290px, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 880px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
+canvas#cv { width: 100%; height: auto; aspect-ratio: 960 / 740; display: block; border-radius: 9px; touch-action: manipulation; background: #0c110f; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 0.74rem; padding: 8px 4px 2px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; background: rgba(255,255,255,0.28); }
+.dot.kuru { background: #8f8f86; } .dot.orta { background: #c9c9a0; } .dot.zengin { background: var(--ore); } .dot.jackpot { background: var(--scan); box-shadow: 0 0 8px var(--scan); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 12px; min-width: 0; }
+.panel h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+.panel h3 { margin: 0 0 6px; font: 600 0.68rem var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; font-size: 0.88rem; margin: 0; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.meter { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--ore); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.up { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.up strong { font-weight: 600; } .up small { color: var(--muted); display: block; }
+.pips { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: 1px; }
+.pips i { width: 8px; height: 8px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--line); }
+.pips i.on { background: var(--ore); border-color: var(--ore); }
+.note { color: var(--muted); font-size: 0.8rem; margin: 0; }
+.verdict { border-radius: 8px; padding: 8px 10px; font-size: 0.84rem; background: var(--surface-2); border: 1px solid var(--line); }
+.mine { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.mine button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; text-align: left; }
+.mine button:hover { border-color: var(--ore); }
+
+.lower { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 980px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+canvas#nw { width: 100%; height: 150px; display: block; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 200px; overflow-y: auto; font-size: 0.84rem; }
+.log li { display: grid; grid-template-columns: 46px 1fr; gap: 8px; }
+.log time { font: 400 0.72rem var(--font-mono); color: var(--muted); padding-top: 2px; }
+.quests { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 200px; overflow-y: auto; }
+.quests li { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: center; font-size: 0.86rem; }
+.quests .chk { width: 16px; height: 16px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface-2); display: grid; place-items: center; font-size: 11px; color: var(--ore-ink); }
+.quests li.done .chk { background: var(--gain); border-color: var(--gain); }
+.quests li.done span { color: var(--muted); text-decoration: line-through; }
+.quests em { font: 600 0.74rem var(--font-mono); color: var(--ore); font-style: normal; }
+.fine { color: var(--muted); font-size: 0.78rem; border-top: 1px solid var(--line); padding-top: 10px; margin: 0; }
+
+/* Satış Ofisi */
+.modal { position: fixed; inset: 0; z-index: 50; background: rgba(4, 8, 6, 0.78); display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top, 0px)) 12px 12px; }
+.modal[hidden] { display: none; }
+.sheet { width: min(860px, 100%); max-height: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.sheet > header { padding: 14px 16px; border-bottom: 1px solid var(--line); flex-wrap: nowrap; }
+.sheet h2 { margin: 0; font-size: 1.25rem; }
+.sheet .body { overflow-y: auto; padding: 14px 16px 18px; display: grid; gap: 16px; align-content: start; }
+.deals { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.deal { border: 1px solid var(--ore); border-radius: 12px; padding: 10px 12px; background: var(--surface-2); display: grid; gap: 6px; }
+.deal .tag { justify-self: start; font: 600 0.72rem var(--font-mono); background: var(--ore); color: var(--ore-ink); padding: 2px 8px; border-radius: 99px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.chips button { background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px; padding: 4px 12px; font-size: 0.84rem; }
+.chips button[aria-pressed="true"] { background: var(--ore); color: var(--ore-ink); border-color: var(--ore); }
+select { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+.rows { display: grid; gap: 6px; }
+.row { display: grid; grid-template-columns: 14px minmax(110px, 1.2fr) minmax(90px, 1fr) auto; gap: 8px 12px; align-items: center; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+.row .sw { width: 14px; height: 30px; border-radius: 4px; }
+.row .acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.row s { color: var(--muted); margin-right: 6px; }
+@media (max-width: 560px) { .row { grid-template-columns: 14px minmax(0, 1fr); } .row .acts { grid-column: 1 / -1; justify-content: flex-start; } }
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; font-family: var(--font-display); }
+th { color: var(--muted); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.scroll-x { overflow-x: auto; }
+.wgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.wnode { border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px; background: var(--surface-2); text-align: left; cursor: pointer; display: grid; gap: 4px; transition: border-color .15s, transform .12s; }
+.wnode:hover:not(:disabled) { border-color: var(--ore); transform: translateY(-1px); }
+.wnode:disabled { opacity: 0.45; cursor: not-allowed; }
+.wnode.cur { border-color: var(--ore); box-shadow: 0 0 0 1px var(--ore); }
+.wnode.done { border-color: var(--gain); }
+.wnode .wn { font-weight: 700; font-size: 0.92rem; }
+.wnode .ws { color: var(--muted); font-size: 0.75rem; }
+.wnode .wh { width: 100%; height: 8px; border-radius: 99px; margin-top: 4px; }
+.wnode .lock { font: 600 0.7rem var(--font-mono); color: var(--muted); }
+
+/* Görsel cila */
+body { background: radial-gradient(ellipse at 12% -5%, rgba(242,180,65,.10), transparent 50%), radial-gradient(ellipse at 95% 25%, rgba(95,211,176,.07), transparent 50%), var(--bg); background-attachment: fixed; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand svg { width: 46px; height: 46px; flex: none; filter: drop-shadow(0 0 12px rgba(242,180,65,.35)); }
+.btn { transition: transform .12s, border-color .12s, background .12s; }
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: translateY(0); }
+.stat { transition: background .3s; }
+.stat.fu { animation: flashup .9s ease-out; } .stat.fd { animation: flashdown .9s ease-out; }
+@keyframes flashup { 0% { background: rgba(143,220,122,.4); } 100% { background: var(--surface); } }
+@keyframes flashdown { 0% { background: rgba(239,106,91,.4); } 100% { background: var(--surface); } }
+.stage, .panel, .dg-game { box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+.dg-win { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); text-align: center; pointer-events: none; animation: dgwin 1.9s ease-out forwards; font: 900 clamp(1.4rem, 5vw, 2.4rem) var(--font-mono); color: #ffe08a; text-shadow: 0 0 24px rgba(255,190,60,.9), 0 3px 12px #000; white-space: nowrap; }
+.dg-win small { display: block; font: 600 .7rem var(--font-mono); letter-spacing: .2em; color: #e8eee4; text-shadow: 0 2px 8px #000; }
+@keyframes dgwin { 0% { opacity: 0; transform: translate(-50%,16px) scale(.6); } 15% { opacity: 1; transform: translate(-50%,0) scale(1.12); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-22px) scale(1); } }
+.dg-graph.win { animation: dgglow 1.2s ease-out; }
+@keyframes dgglow { 0% { box-shadow: 0 0 0 0 rgba(255,200,70,.9); } 100% { box-shadow: 0 0 50px 14px rgba(255,200,70,0); } }
+.dg-mult.t2 { background-image: linear-gradient(135deg,#fde68a,#fbbf24,#fb923c); }
+.dg-mult.t5 { background-image: linear-gradient(135deg,#a7f3d0,#34d399,#67e8f9); }
+.dg-mult.t10 { background-image: linear-gradient(135deg,#f0abfc,#a78bfa,#67e8f9); animation: dgpulse .8s ease-in-out infinite; }
+@keyframes dgpulse { 50% { scale: 1.07; } }
+/* Mağaza ve reklam */
+.shopsheet { width: min(900px, 100%); }
+.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.tabs button { background: transparent; border: 0; padding: 7px 16px; font-weight: 600; color: var(--muted); }
+.tabs button[aria-pressed="true"] { background: var(--ore); color: var(--ore-ink); }
+.sgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.scard { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.scard.on { border-color: var(--ore); box-shadow: inset 0 0 0 1px rgba(242,180,65,.4); }
+.scard .sw { height: 64px; border-radius: 8px; position: relative; overflow: hidden; }
+.scard .sw b { position: absolute; left: 6px; top: 6px; font: 600 .66rem var(--font-mono); background: rgba(0,0,0,.55); border-radius: 99px; padding: 1px 8px; }
+.scard h4 { margin: 0; font-size: .98rem; }
+.scard p { margin: 0; font-size: .78rem; color: var(--muted); }
+.scard .srow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.price { font: 600 .86rem var(--font-mono); color: var(--ore); }
+.r-rare { color: #7fb8ff; } .r-epic { color: #d49bff; } .r-legend { color: #ffb347; }
+.pvbar { background: rgba(95,211,176,.12); border: 1px solid var(--scan); color: var(--scan); border-radius: 10px; padding: 8px 12px; font-size: .86rem; }
+.adcard { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px; }
+.adslot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; min-height: 56px; padding: 8px 14px; border: 1px dashed rgba(255,255,255,.22); border-radius: 12px; background: linear-gradient(90deg, rgba(95,211,176,.08), rgba(242,180,65,.08)); color: var(--muted); font-size: .8rem; }
+.adslot[hidden] { display: none; }
+.adslot b { color: var(--ink); }
+.adview { position: fixed; inset: 0; z-index: 70; background: rgba(2,4,3,.92); display: grid; place-items: center; padding: 16px; }
+.adview[hidden] { display: none; }
+.adbox { width: min(520px, 100%); background: #111; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; display: grid; }
+.adbox .cr { aspect-ratio: 16 / 9; display: grid; place-items: center; text-align: center; background: linear-gradient(135deg,#2c1a4a,#0f4a5a,#5a2a1a); background-size: 300% 300%; animation: adbg 6s ease-in-out infinite; padding: 16px; }
+@keyframes adbg { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.adbox .cr b { font: 800 1.5rem var(--font-display); } .adbox .cr span { color: #cfe; font-size: .85rem; }
+.adbox .bar { height: 5px; background: rgba(255,255,255,.1); } .adbox .bar i { display: block; height: 100%; width: 0; background: var(--ore); transition: width 1s linear; }
+.adbox .ft { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; }
+/* Derin Kazı bölümü */
+#dig { display: block; }
+#dig .sheet { width: 100%; max-height: none; overflow: visible; border-radius: 14px; }
+#dig .body { overflow: visible; }
+@media (max-width: 520px) { .dg-main, .dg-cash { font-size: .68rem; height: 42px; } .dg-tl { font-size: .6rem; } .dg-bets { gap: 8px; padding: 10px; } .dg-quick button { font-size: .66rem; } .dg-av { width: 48px; } .dg-row button { width: 32px; } }
+
+.dgsheet { width: min(1000px, 100%); background: #14110f; }
+.dgsheet > header { background: linear-gradient(135deg, rgba(234,88,12,.18), transparent); }
+.dgsheet .dtitle { font: 900 1.4rem var(--font-display); letter-spacing: .14em; background: linear-gradient(135deg,#fdba74,#f87171,#fdba74); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
+.dg-top { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.pill { font: 700 .85rem var(--font-mono); background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.1); border-radius: 20px; padding: 5px 12px; color: var(--ore); }
+.dg-game { background: rgba(26,18,14,.9); border: 1px solid rgba(234,88,12,.25); border-radius: 18px; padding: 12px; display: grid; gap: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.dg-hist { display: flex; gap: 5px; overflow-x: auto; min-height: 24px; scrollbar-width: thin; }
+.badge { flex: none; font: 700 .72rem var(--font-mono); padding: 2px 7px; border-radius: 5px; border: 1px solid; }
+.badge.low { color:#fca5a5; border-color:rgba(239,68,68,.4); background:rgba(239,68,68,.1); } .badge.mid { color:#fcd34d; border-color:rgba(245,158,11,.4); background:rgba(245,158,11,.1); }
+.badge.high { color:#6ee7b7; border-color:rgba(16,185,129,.4); background:rgba(16,185,129,.1); } .badge.gold { color:var(--ore); border-color:rgba(251,191,36,.5); background:rgba(251,191,36,.15); }
+.dg-graph { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid rgba(234,88,12,.2); background: #0c0705; }
+.dg-graph canvas { width: 100%; height: auto; aspect-ratio: 960 / 400; display: block; }
+.dg-graph.shake { animation: dgshake .4s; }
+@keyframes dgshake { 20%{transform:translate(-5px,3px)} 40%{transform:translate(5px,-3px)} 60%{transform:translate(-3px,-2px)} 80%{transform:translate(3px,2px)} }
+.dg-mult { position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; font: 800 clamp(2.6rem, 9vw, 4.5rem)/1 var(--font-mono); background: linear-gradient(135deg,#fdba74,#fb7185,#fcd34d); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 24px rgba(251,146,60,.4)); text-align: center; }
+.dg-mult small { display: block; font: 600 .75rem var(--font-mono); letter-spacing: .2em; -webkit-text-fill-color: #d9c7b8; margin-top: 6px; }
+.dg-mult.crashed { background: linear-gradient(135deg,#fca5a5,#ef4444,#dc2626); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 0 24px rgba(239,68,68,.5)); }
+.dg-count { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(8,4,3,.82); backdrop-filter: blur(6px); }
+.dg-count b { font: 900 clamp(4rem, 14vw, 6rem) var(--font-mono); background: linear-gradient(135deg,#fbbf24,#ef4444); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.dg-count span { font: 600 .8rem var(--font-mono); color: var(--muted); letter-spacing: .3em; margin-top: 6px; }
+.dg-pop { position: absolute; left: 50%; top: 68%; pointer-events: none; font: 800 1.05rem var(--font-mono); color: #6ee7b7; text-shadow: 0 2px 12px rgba(0,0,0,.8); white-space: nowrap; animation: dgpop 1.5s ease-out forwards; }
+@keyframes dgpop { 0%{opacity:0;transform:translate(-50%,10px) scale(.8)} 15%{opacity:1;transform:translate(-50%,0) scale(1.1)} 100%{opacity:0;transform:translate(-50%,-46px) scale(1)} }
+.dg-status { text-align: center; font-size: .82rem; font-weight: 700; color: var(--muted); min-height: 1.3em; }
+.dg-stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; }
+.dg-stats div { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 5px 8px; text-align: center; }
+.dg-stats small { display: block; color: var(--muted); font-size: .58rem; text-transform: uppercase; letter-spacing: .06em; }
+.dg-stats b { font: 700 .82rem var(--font-mono); }
+.dg-bets { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #1b1511; padding: 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,.06); }
+.dg-card { display: grid; gap: 8px; min-width: 0; }
+.dg-row { display: flex; align-items: center; background: #120d0a; border: 1px solid rgba(255,255,255,.06); border-radius: 10px; height: 44px; overflow: hidden; }
+.dg-row button { width: 40px; height: 100%; background: none; border: 0; color: var(--muted); font-size: 1.2rem; }
+.dg-row button:hover { color: #fff; }
+.dg-row input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: #fff; text-align: center; font: 700 1rem var(--font-mono); }
+.dg-quick { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; }
+.dg-quick button { background: var(--surface-2); border: 1px solid rgba(255,255,255,.06); border-radius: 6px; color: #fff; padding: 6px 0; font: 700 .72rem var(--font-mono); }
+.dg-main, .dg-cash { height: 48px; border: 0; border-radius: 8px; font: 800 .85rem var(--font-display); text-transform: uppercase; color: #fff; padding: 0 6px; align-items: center; justify-content: center; }
+.dg-main { display: flex; background: #c2410c; box-shadow: 0 4px 15px rgba(194,65,12,.45); }
+.dg-main:hover:not(:disabled) { background: #9a3412; }
+.dg-main.cancel { background: #6b7280; box-shadow: none; }
+.dg-main:disabled { opacity: .45; cursor: not-allowed; }
+.dg-cash { display: none; background: linear-gradient(135deg,#f59e0b,#d97706); color: #1a1a1a; box-shadow: 0 4px 15px rgba(245,158,11,.4); }
+.dg-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.dg-tg { display: flex; gap: 10px; flex-wrap: wrap; }
+.dg-tl { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: .68rem; font-weight: 700; cursor: pointer; user-select: none; background: none; border: 0; padding: 0; }
+.dg-sw { position: relative; width: 28px; height: 16px; border-radius: 8px; background: #120d0a; border: 1px solid rgba(255,255,255,.12); }
+.dg-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); transition: .2s; }
+.dg-tl[aria-pressed="true"] .dg-sw { background: #c2410c; } .dg-tl[aria-pressed="true"] .dg-sw::after { left: 14px; background: #fff; }
+.dg-av { width: 56px; background: #120d0a; border: 1px solid rgba(255,255,255,.12); color: #fff; border-radius: 4px; padding: 3px; text-align: center; font: 600 .78rem var(--font-mono); }
+.dg-pl { background: #1b1511; border: 1px solid rgba(255,255,255,.06); border-radius: 16px; padding: 12px 14px; }
+.dg-plhead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: .85rem; font-weight: 800; }
+.dg-plhead span { color: var(--muted); font: 600 .7rem var(--font-mono); }
+.dg-plrow { display: grid; grid-template-columns: 1.2fr 1fr .8fr 1.1fr; gap: 6px; align-items: center; padding: 6px 10px; border-radius: 8px; font: 700 .78rem var(--font-mono); background: rgba(255,255,255,.03); margin-bottom: 3px; }
+.dg-plrow span:nth-child(n+2) { text-align: right; }
+.dg-plrow.cols { background: none; color: var(--muted); font-size: .62rem; text-transform: uppercase; letter-spacing: .05em; }
+.dg-plrow.w { background: rgba(16,185,129,.15); color: #6ee7b7; } .dg-plrow.l { color: var(--muted); opacity: .65; }
+.dg-plrow.me { outline: 1px solid rgba(251,191,36,.5); background: rgba(251,191,36,.1); } .dg-plrow.me.w { background: rgba(16,185,129,.22); }
+
+#toasts { position: fixed; left: 0; right: 0; bottom: max(14px, env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; gap: 6px; pointer-events: none; z-index: 60; padding: 0 16px; }
+.toast { background: var(--surface-2); border: 1px solid var(--ore); border-radius: 10px; padding: 8px 14px; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand"><svg viewBox="0 0 64 64" role="img" aria-label="Parsel Madeni"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2b441"/><stop offset="1" stop-color="#5fd3b0"/></linearGradient></defs><polygon points="32,3 57,17.5 57,46.5 32,61 7,46.5 7,17.5" fill="#141c18" stroke="url(#lg)" stroke-width="3" stroke-linejoin="round"/><path d="M17 44L31 30M23 24c6-6 15-6 22 0M33 28l12 14" fill="none" stroke="url(#lg)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="47" cy="44" r="3" fill="#f2b441"/></svg><h1><small>Sanal dünya · Kuzey Havzası</small>Parsel Madeni</h1></div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="toolbar">
+    <div class="market"><div><span class="lbl">Cevher fiyatı</span><br><b id="mprice">1,00x</b></div><canvas id="spark" width="220" height="64" aria-label="Cevher fiyatı grafiği"></canvas></div>
+    <div class="grow"></div>
+    <div><span class="lbl" style="margin-right:6px">Zaman hızı</span><span class="seg" id="speed"><button data-s="1" aria-pressed="true">×1</button><button data-s="3" aria-pressed="false">×3</button><button data-s="10" aria-pressed="false">×10</button></span></div>
+    <button class="btn primary" id="office-btn">Satış Ofisi</button>
+    <button class="btn" id="dig-open">Derin Kazı ↓</button>
+    <button class="btn" id="shop-btn">Mağaza</button>
+    <button class="btn primary" id="world-btn">Dünya Haritası</button>
+    <button class="btn" id="turbo">Turbo</button>
+    <button class="btn" id="mute" aria-pressed="false">Ses: açık</button>
+    <button class="btn" id="reset">Sıfırla</button>
+  </div>
+
+  <div class="main">
+    <section class="stage">
+      <canvas id="cv" tabindex="0" role="application" aria-label="Arazi haritası. Ok tuşlarıyla parsel seç, O tuşuyla Satış Ofisi'ni aç."></canvas>
+      <div class="legend">
+        <span><i style="background:var(--t-kiyi)"></i>Kıyı</span><span><i style="background:var(--t-vadi)"></i>Vadi</span>
+        <span><i style="background:var(--t-dag)"></i>Dağ</span><span><i style="background:var(--t-col)"></i>Çöl</span>
+        <span><span class="dot kuru"></span>Kuru</span><span><span class="dot orta"></span>Orta</span>
+        <span><span class="dot zengin"></span>Zengin</span><span><span class="dot jackpot"></span>Jackpot</span>
+      </div>
+    </section>
+    <aside class="panel" id="panel"></aside>
+  </div>
+
+<section id="dig">
+  <div class="sheet dgsheet" role="dialog" aria-modal="true" aria-labelledby="dgtitle">
+    <header>
+      <div><h2 class="dtitle" id="dgtitle">DERİN KAZI</h2><span class="note">Rezerv cevheriyle oynanan sanal crash oyunu</span></div>
+    </header>
+    <div class="body">
+      <div class="dg-top"><label class="note" for="dg-parcel">Rezerv kaynağı</label><select id="dg-parcel"></select><span class="pill" id="dg-res"></span><span class="pill" id="dg-bal" style="color:#8fdc7a"></span><label class="note" for="dg-nick">Takma ad</label><input class="dg-av" id="dg-nick" style="width:130px" maxlength="14" autocomplete="off"><button class="btn sm" id="dg-mode" hidden></button><span class="pill" id="dg-online" style="color:#5fd3b0"></span></div>
+      <div class="dg-game">
+        <div class="dg-hist" id="dg-hist"></div>
+        <div class="dg-graph" id="dg-graph">
+          <canvas id="dg-cv" width="1920" height="800" aria-label="Maden kuyusu: matkap derine iniyor"></canvas>
+          <div class="dg-mult" id="dg-mult">1.00x<small id="dg-depth">0 m</small></div>
+          <div class="dg-count" id="dg-count"><b id="dg-cnum">5</b><span>TUR BAŞLIYOR</span></div>
+        </div>
+        <div class="dg-status" id="dg-status"></div>
+        <div class="dg-stats" id="dg-stats"></div>
+      </div>
+      <div class="dg-bets" id="dg-bets"></div>
+      <div class="dg-pl"><div class="dg-plhead"><b>Bu Turdaki Kazılar</b><span id="dg-plsum"></span></div>
+        <div class="dg-plrow cols"><span>Oyuncu</span><span>Kazı</span><span>Çarpan</span><span>Çekim</span></div><div id="dg-pl"></div></div>
+      <div class="dg-pl" id="dg-lbwrap" hidden><div class="dg-plhead"><b>Çevrimiçi madenciler</b><span>Kendi bildirdikleri değerler</span></div><div id="dg-lb"></div></div>
+      <div class="adslot" id="adslot"><span><b>Reklam alanı</b> · demo (728×90)</span><span>Örnek Reklamveren · Burada reklamınız olabilir</span></div>
+      <p class="note" style="text-align:center">Sanal puanla oynanan bir oyundur; gerçek para içermez. Her kazı parselin kalan cevher rezervinden düşer, göçükte kaybolabilir. Ortak turlarda sayfayı aynı anda açan kişilerle aynı turu oynarsın; "bot" yazan oyuncular simülasyondur. Kısayol: 1 ve 2 tuşları.</p>
+    </div>
+  </div>
+</section>
+  <div class="lower">
+    <section class="panel"><h3>Net değer</h3><canvas id="nw" width="720" height="300" aria-label="Net değer grafiği"></canvas></section>
+    <section class="panel"><h3>Görevler</h3><ul class="quests" id="quests"></ul></section>
+    <section class="panel"><h3>Olay günlüğü</h3><ul class="log" id="log"></ul></section>
+  </div>
+  <p class="fine">Parsel Madeni, sanal puanla oynanan bir simülasyondur. Gerçek para, gerçek madencilik, kripto varlık, para yatırma ya da çekme içermez. Parsellerin zenginliği rastgeledir; bazıları satın alma bedelini hiç çıkarmaz. Derin Kazı'da göçük noktası rastgeledir ve rezerv kaybolabilir.</p>
+</div>
+
+<div class="modal" id="office" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="otitle">
+    <header>
+      <div><h2 id="otitle">Satış Ofisi</h2><span class="note" id="obal"></span></div>
+      <button class="btn" id="oclose">Kapat</button>
+    </header>
+    <div class="body" id="obody"></div>
+  </div>
+</div>
+<div class="modal" id="shop" hidden>
+  <div class="sheet shopsheet" role="dialog" aria-modal="true" aria-labelledby="shoptitle">
+    <header>
+      <div><h2 id="shoptitle">Mağaza</h2><span class="note" id="shopbal"></span></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tabs" id="shoptabs"><button data-tab="skins" aria-pressed="true">Görünümler</button><button data-tab="ads" aria-pressed="false">Ödüllü reklam</button></span><button class="btn" id="shopclose">Kapat</button></div>
+    </header>
+    <div class="body" id="shopbody"></div>
+  </div>
+</div>
+<div class="adview" id="adview" hidden>
+  <div class="adbox" role="dialog" aria-modal="true" aria-label="Örnek reklam">
+    <div class="cr"><div><b>Örnek Reklamveren</b><br><span>Reklam alanı örneği. Burada gerçek bir reklam gösterilecek.</span></div></div>
+    <div class="bar"><i id="adprog"></i></div>
+    <div class="ft"><span class="note" id="adtxt"></span><button class="btn primary" id="adclaim" disabled>Ödülü al</button></div>
+  </div>
+</div>
+<div class="modal" id="worldmap" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="wmtitle" style="width:min(720px,100%)">
+    <header>
+      <div><h2 id="wmtitle">Dünya Haritası</h2><span class="note" id="wmnote">21 bölüm · Tüm parselleri tüket, sonraki temaya geç</span></div>
+      <button class="btn" id="wmclose">Kapat</button>
+    </header>
+    <div class="body">
+      <div id="wmprog" class="note" style="margin-bottom:8px"></div>
+      <div class="wgrid" id="wgrid"></div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn primary" id="wm-next" hidden>Sonraki bölüme geç →</button>
+      </div>
+      <p class="note">Kilitli bölümler, bir önceki bölgedeki 48 parselin tamamı tükendikten sonra açılır. Bakiye, mağaza ve Derin Kazı istatistiklerin korunur.</p>
+    </div>
+  </div>
+</div>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+(() => {
+  "use strict";
+  const COLS = 8, ROWS = 6, LIFE = 600, START = 5000, DAY = 240, SAVE = "parsel-madeni-v4";
+  /* 21 bölüm — her biri tükendikten sonra yeni tema */
+  const CHAPTERS = [
+    { id: 0,  name: "Kuzey Havzası",     sub: "Yeşil başlangıç",     filter: "none", price: 1.00, odds: null, hue: "#3f6b34" },
+    { id: 1,  name: "Tuz Gölü",          sub: "Beyaz tuz düzlükleri", filter: "saturate(.7) brightness(1.08)", price: 1.08, odds: null, hue: "#c4d4e0" },
+    { id: 2,  name: "Kızıl Kanyon",      sub: "Demirli kayalıklar",   filter: "sepia(.35) saturate(1.3) hue-rotate(-12deg)", price: 1.15, odds: null, hue: "#b85a3a" },
+    { id: 3,  name: "Zümrüt Vadi",       sub: "Yoğun orman damarı",   filter: "hue-rotate(40deg) saturate(1.2)", price: 1.22, odds: null, hue: "#2d8a4e" },
+    { id: 4,  name: "Buzul Sırtı",       sub: "Donmuş katmanlar",     filter: "saturate(.55) brightness(1.15) hue-rotate(160deg)", price: 1.30, odds: null, hue: "#9fc4d9" },
+    { id: 5,  name: "Obsidyen Çukur",    sub: "Volkanik cam",         filter: "contrast(1.15) saturate(.8) brightness(.92)", price: 1.38, odds: null, hue: "#2a2430" },
+    { id: 6,  name: "Altın Bozkır",      sub: "Sarı otlak madeni",    filter: "sepia(.5) saturate(1.4) hue-rotate(5deg)", price: 1.45, odds: null, hue: "#d4a017" },
+    { id: 7,  name: "Mor Mağara",        sub: "Kristal damarlar",     filter: "hue-rotate(250deg) saturate(1.35)", price: 1.55, odds: null, hue: "#8b5cf6" },
+    { id: 8,  name: "Turkuaz Kıyı",      sub: "Sığ mercan yatakları", filter: "hue-rotate(180deg) saturate(1.2)", price: 1.62, odds: null, hue: "#2dd4bf" },
+    { id: 9,  name: "Kömür Ocağı",       sub: "Kara toz ve is",       filter: "grayscale(.35) contrast(1.1) brightness(.9)", price: 1.70, odds: null, hue: "#44403c" },
+    { id: 10, name: "Amber Ormanı",      sub: "Fosil reçine",         filter: "sepia(.55) saturate(1.25) hue-rotate(-5deg)", price: 1.80, odds: null, hue: "#d97706" },
+    { id: 11, name: "Gümüş Yayla",       sub: "Metalik parıltı",      filter: "saturate(.4) brightness(1.2) contrast(1.08)", price: 1.90, odds: null, hue: "#a8a29e" },
+    { id: 12, name: "Lav Nehri",         sub: "Eritilmiş kaya",       filter: "sepia(.4) saturate(1.6) hue-rotate(-25deg) contrast(1.1)", price: 2.00, odds: null, hue: "#ef4444" },
+    { id: 13, name: "Ay Tozu",           sub: "Gri krater alanı",     filter: "grayscale(.5) brightness(1.05) contrast(1.12)", price: 2.12, odds: null, hue: "#78716c" },
+    { id: 14, name: "Neon Vadisi",       sub: "Sentetik damarlar",    filter: "hue-rotate(280deg) saturate(1.6) contrast(1.08)", price: 2.25, odds: null, hue: "#e879f9" },
+    { id: 15, name: "Derin Okyanus",     sub: "Basınçlı maden",       filter: "hue-rotate(200deg) saturate(1.1) brightness(.95)", price: 2.40, odds: null, hue: "#1e3a5f" },
+    { id: 16, name: "Göktaşı Krateri",   sub: "Uzay metali",          filter: "saturate(1.3) contrast(1.15) brightness(1.05)", price: 2.55, odds: null, hue: "#6366f1" },
+    { id: 17, name: "Zaman Kırığı",      sub: "Anomali bölgesi",      filter: "hue-rotate(90deg) saturate(1.4) contrast(1.2)", price: 2.70, odds: null, hue: "#14b8a6" },
+    { id: 18, name: "Kuantum Şelf",      sub: "Titreşen cevher",      filter: "hue-rotate(310deg) saturate(1.5) brightness(1.08)", price: 2.90, odds: null, hue: "#22d3ee" },
+    { id: 19, name: "Sonsuz Çukur",      sub: "Dip katman",           filter: "contrast(1.2) brightness(.88) saturate(.9)", price: 3.10, odds: null, hue: "#1c1917" },
+    { id: 20, name: "Çekirdek",          sub: "Son bölüm",            filter: "sepia(.2) saturate(1.5) brightness(1.1) contrast(1.15)", price: 3.40, odds: null, hue: "#f59e0b" }
+  ];
+  const ch = () => CHAPTERS[Math.min(CHAPTERS.length - 1, S && S.chapter != null ? S.chapter : 0)] || CHAPTERS[0];
+  const W = 960, H = 740, GX = 24, GY = 152, TW = 114, TH = 93;
+  const TERRAIN = {
+    kiyi: { name: "Kıyı", price: [600, 900], odds: [0.30, 0.42, 0.22, 0.06] },
+    vadi: { name: "Vadi", price: [900, 1400], odds: [0.32, 0.42, 0.20, 0.06] },
+    dag:  { name: "Dağ", price: [1400, 2200], odds: [0.38, 0.35, 0.20, 0.07] },
+    col:  { name: "Çöl", price: [500, 800], odds: [0.50, 0.32, 0.14, 0.04] }
+  };
+  const TCOL = { kiyi: "#3b7f80", vadi: "#3f6b34", dag: "#5a5048", col: "#b08a4a" };
+  const GRADES = ["kuru", "orta", "zengin", "jackpot"];
+  const GN = { kuru: "Kuru", orta: "Orta", zengin: "Zengin", jackpot: "Jackpot" };
+  const GCOL = { kuru: "#8f8f86", orta: "#c9c9a0", zengin: "#f2b441", jackpot: "#5fd3b0" };
+  const R_RANGE = { kuru: [0.2, 0.7], orta: [0.8, 1.1], zengin: [1.3, 1.8], jackpot: [2.5, 4.0] };
+  const fmt = n => new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(Math.round(n));
+  const fmt2 = n => new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  const sgn = n => (n >= 0 ? "+" : "−") + fmt(Math.abs(n));
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const $ = id => document.getElementById(id);
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let S, selected = null, hover = null, speed = 1, lastSave = 0, tv = 0, mouse = { x: 0, y: 0 };
+  let officeFilter = "all", officeSort = "price", pending = null;
+  const floats = [], dust = [];
+
+  /* ---------- dünya ---------- */
+  function newParcel(i, chapterIdx) {
+    const x = i % COLS, y = Math.floor(i / COLS);
+    const t = x < 2 ? "kiyi" : x < 4 ? "vadi" : x < 6 ? "dag" : "col";
+    const T = TERRAIN[t];
+    let roll = Math.random(), gi = 0, acc = 0;
+    for (; gi < 3; gi++) { acc += T.odds[gi]; if (roll < acc) break; }
+    // İlerleyen bölümlerde biraz daha zengin damar şansı
+    const cIdx = chapterIdx != null ? chapterIdx : (S && S.chapter) || 0;
+    if (cIdx >= 5 && Math.random() < 0.06) gi = Math.min(3, gi + 1);
+    if (cIdx >= 12 && Math.random() < 0.05) gi = Math.min(3, gi + 1);
+    const grade = GRADES[gi], r = rnd(...R_RANGE[grade]);
+    const scale = (CHAPTERS[cIdx] && CHAPTERS[cIdx].price) || 1;
+    const price = Math.round(rnd(...T.price) * scale / 10) * 10;
+    return { id: i, x, y, t, price, r, grade, v0: price * r * 0.95, left: price * r * 0.95,
+      owner: false, drill: 0, eff: 0, crew: 0, scanned: false, mined: 0, earned: 0, spent: 0, paid: 0 };
+  }
+  function newWorld() {
+    return { wallet: START, t: 0, m: 1, mh: Array(40).fill(1), turbo: 0, nwh: [START], log: [],
+      parcels: Array.from({ length: COLS * ROWS }, (_, i) => newParcel(i, 0)),
+      offers: [], offerUntil: 0, scans: 0, soldProfit: false, jackpotSeen: false, quests: {}, mute: false,
+      shop: { owned: {}, equip: {}, ads: 0, adAt: 0, noAds: false }, digHist: [], digStats: { runs: 0, wins: 0, best: 0, net: 0 },
+      chapter: 0, maxChapter: 0, chapterClearPending: false, saved: Date.now() };
+  }
+  function load() {
+    try {
+      const w = JSON.parse(localStorage.getItem(SAVE));
+      if (w && w.parcels && w.parcels.length === COLS * ROWS) {
+        w.chapter = w.chapter || 0;
+        w.maxChapter = Math.max(w.maxChapter || 0, w.chapter || 0);
+        w.chapterClearPending = !!w.chapterClearPending;
+        return w;
+      }
+    } catch (e) {}
+    return null;
+  }
+  function save() { try { S.saved = Date.now(); localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
+
+  const depleted = p => p.left <= 0.5;
+  const sellValue = p => Math.round(p.price * 0.35 + p.left * 0.6);
+  const known = p => p.scanned || p.mined >= 45;
+  const crewN = p => 1 + p.crew;
+  const speedMult = p => (1 + 0.5 * p.drill) * (1 + 0.3 * p.crew) * (S.turbo > 0 ? 3 : 1);
+  const costPerSec = p => p.price * 0.10 / LIFE * (1 + 0.3 * p.drill) * (1 + 0.15 * p.crew) * (1 - 0.1 * p.eff) * (S.turbo > 0 ? 2.5 : 1);
+  const orePerSec = p => p.v0 / LIFE * speedMult(p);
+  const netPerSec = p => orePerSec(p) * S.m - costPerSec(p);
+  const offerOf = p => S.offers.find(o => o.id === p.id && S.t < S.offerUntil);
+  const priceOf = p => { const o = offerOf(p); return Math.round(p.price * (1 - (o ? o.disc : 0))); };
+  const scanFee = p => Math.round(p.price * 0.06);
+  const netWorth = () => S.wallet + S.parcels.filter(p => p.owner).reduce((a, p) => a + sellValue(p), 0);
+  const ownedList = () => S.parcels.filter(p => p.owner);
+  const UPS = {
+    drill: { name: "Matkap", mult: 0.12, key: "drill", desc: "Hız +%50 · enerji gideri +%30" },
+    crew: { name: "Madenci kadrosu", mult: 0.08, key: "crew", desc: "Hız +%30 · maaş gideri +%15" },
+    eff: { name: "Verimlilik", mult: 0.10, key: "eff", desc: "Enerji gideri −%10" }
+  };
+  const upCost = (p, k) => Math.round(p.price * UPS[k].mult * (p[k] + 1));
+  const upMax = k => (k === "crew" ? 4 : 5);
+
+  function log(msg, tone) { S.log.unshift({ t: S.t, msg, tone }); if (S.log.length > 60) S.log.pop(); }
+
+  /* ---------- ses ---------- */
+  let actx = null;
+  function beep(freq, dur = 0.12, type = "triangle", vol = 0.05, delay = 0) {
+    if (S && S.mute) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + delay;
+      o.type = type; o.frequency.value = freq; g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+    } catch (e) {}
+  }
+  const sfx = { buy: () => { beep(440, 0.1); beep(660, 0.16, "triangle", 0.05, 0.09); }, up: () => { beep(520, 0.08, "square", 0.025); beep(780, 0.12, "square", 0.025, 0.07); },
+    no: () => beep(150, 0.18, "sawtooth", 0.04), coin: () => { beep(880, 0.07); beep(1320, 0.12, "triangle", 0.04, 0.06); }, sell: () => beep(330, 0.2, "triangle", 0.05) };
+
+  function toast(msg) {
+    const el = document.createElement("div"); el.className = "toast"; el.textContent = msg; $("toasts").appendChild(el);
+    setTimeout(() => el.remove(), 3200);
+  }
+
+  /* ---------- simülasyon ---------- */
+  function refreshOffers() {
+    const pool = S.parcels.filter(p => !p.owner && !depleted(p));
+    pool.sort(() => Math.random() - 0.5);
+    S.offers = pool.slice(0, 3).map((p, i) => ({ id: p.id, disc: [0.10, 0.15, 0.20][i] }));
+    S.offerUntil = S.t + 180;
+  }
+  const QUESTS = [
+    { id: "own1", t: "İlk parseli satın al", r: 100, f: () => ownedList().length >= 1 },
+    { id: "scan", t: "Bir parsel tara", r: 50, f: () => S.scans >= 1 },
+    { id: "drill", t: "Bir matkap yükselt", r: 100, f: () => S.parcels.some(p => p.owner && p.drill >= 1) },
+    { id: "crew", t: "Kadroyu 3 madenciye çıkar", r: 150, f: () => S.parcels.some(p => p.owner && p.crew >= 2) },
+    { id: "own3", t: "Üç parsele sahip ol", r: 200, f: () => ownedList().length >= 3 },
+    { id: "profit", t: "Bir parseli kârla sat", r: 300, f: () => S.soldProfit },
+    { id: "nw", t: "Net değeri 8.000'e çıkar", r: 400, f: () => netWorth() >= 8000 },
+    { id: "dig", t: "Derin Kazı'da 2x veya üstünde çek", r: 150, f: () => (S.digStats && S.digStats.best >= 2) },
+    { id: "skin", t: "Mağazadan bir görünüm al", r: 100, f: () => Object.keys(S.shop.owned).length > 0 },
+    { id: "jack", t: "Bir Jackpot parsel bul", r: 500, f: () => S.jackpotSeen }
+  ];
+  function checkQuests() {
+    for (const q of QUESTS) if (!S.quests[q.id] && q.f()) {
+      S.quests[q.id] = true; S.wallet += q.r; log(`Görev tamamlandı: ${q.t} (+${q.r}).`, "pos"); toast(`Görev: ${q.t} · +${q.r} puan`); sfx.coin();
+    }
+  }
+  function allParcelsDepleted() {
+    return S.parcels.every(p => depleted(p));
+  }
+  function chapterProgress() {
+    const done = S.parcels.filter(p => depleted(p)).length;
+    return { done, total: S.parcels.length, pct: Math.round(done / S.parcels.length * 100) };
+  }
+  function applyChapterTheme() {
+    const c = ch();
+    const shopFilter = (typeof applyMapSkin === "function") ? null : null;
+    // Mağaza harita filtresi yoksa bölüm filtresi
+    try {
+      const equipMap = S.shop && S.shop.equip && S.shop.equip.map;
+      if (!equipMap || equipMap === "klasik") {
+        cv.style.filter = c.filter || "none";
+      }
+    } catch (e) { cv.style.filter = c.filter || "none"; }
+    const brand = document.querySelector("h1 small");
+    if (brand) brand.textContent = `Bölüm ${(S.chapter || 0) + 1}/21 · ${c.name}`;
+  }
+  function checkChapterClear() {
+    if (S.chapterClearPending) return;
+    if (!allParcelsDepleted()) return;
+    if ((S.chapter || 0) >= CHAPTERS.length - 1) {
+      if (!S.quests._finale) {
+        S.quests._finale = true;
+        S.wallet += 5000;
+        toast("Çekirdek tamamlandı! +5.000 puan");
+        log("Tüm 21 bölüm tamamlandı. Tebrikler!", "pos");
+        sfx.coin();
+      }
+      return;
+    }
+    S.chapterClearPending = true;
+    S.maxChapter = Math.max(S.maxChapter || 0, (S.chapter || 0) + 1);
+    const next = CHAPTERS[(S.chapter || 0) + 1];
+    toast(`Bölüm bitti! Sonraki: ${next.name}`);
+    log(`Bölüm ${(S.chapter || 0) + 1} tükendi. Dünya haritasından sonraki bölüme geç.`, "pos");
+    sfx.coin();
+    setTimeout(() => { if (S.chapterClearPending) openWorldMap(); }, 1200);
+  }
+  function isChapterUnlocked(idx) {
+    idx = idx | 0;
+    if (idx <= (S.maxChapter || 0)) return true;
+    if (S.chapterClearPending && idx === (S.chapter || 0) + 1) return true;
+    return false;
+  }
+  function enterChapter(idx) {
+    idx = clamp(idx | 0, 0, CHAPTERS.length - 1);
+    if (!isChapterUnlocked(idx)) { sfx.no(); toast("Bu bölüm henüz kilitli"); return false; }
+    S.maxChapter = Math.max(S.maxChapter || 0, idx);
+    S.chapter = idx;
+    S.chapterClearPending = false;
+    S.parcels = Array.from({ length: COLS * ROWS }, (_, i) => newParcel(i, idx));
+    S.offers = []; S.offerUntil = 0; S.t = 0; S.turbo = 0;
+    selected = null; floats.length = 0; dust.length = 0;
+    refreshOffers();
+    applyChapterTheme();
+    if (typeof applyMapSkin === "function") try { applyMapSkin(); } catch (e) {}
+    buildBG();
+    const c = CHAPTERS[idx];
+    log(`Bölüm ${idx + 1}: ${c.name} — ${c.sub}`, "pos");
+    toast(`${c.name}`);
+    sfx.up();
+    refresh(true);
+    save();
+    closeWorldMap();
+    return true;
+  }
+  function advanceChapter() {
+    if (!S.chapterClearPending && !allParcelsDepleted()) { sfx.no(); toast("Önce tüm parselleri tüket"); return; }
+    const next = Math.min(CHAPTERS.length - 1, (S.chapter || 0) + 1);
+    S.maxChapter = Math.max(S.maxChapter || 0, next);
+    S.chapterClearPending = true;
+    enterChapter(next);
+  }
+
+  function tick() {
+    S.t += 1;
+    if (S.t >= S.offerUntil) refreshOffers();
+    if (S.turbo > 0) { S.turbo -= 1; if (S.turbo === 0) log("Turbo bitti."); }
+    if (S.t % 4 === 0) {
+      S.m = clamp(S.m + (1 - S.m) * 0.05 + (Math.random() - 0.5) * 0.07, 0.75, 1.35);
+      S.mh.push(S.m); if (S.mh.length > 40) S.mh.shift();
+    }
+    if (Math.random() < 1 / 240) {
+      const up = Math.random() < 0.5;
+      S.m = clamp(S.m + (up ? 0.12 : -0.12), 0.75, 1.35);
+      log(up ? "Alıcılar cevher topluyor: fiyat yükseldi." : "Piyasa düştü: cevher fiyatı geriledi.", up ? "pos" : "neg");
+    }
+    const now = performance.now();
+    for (const p of S.parcels) {
+      p.idle = false;
+      if (!p.owner || depleted(p)) continue;
+      const cost = costPerSec(p);
+      if (S.wallet < cost) { p.idle = true; continue; }
+      const ore = Math.min(p.left, orePerSec(p)), rev = ore * S.m;
+      S.wallet += rev - cost; p.earned += rev; p.spent += cost; p.left -= ore; p.mined += 1;
+      p.acc = (p.acc || 0) + rev;
+      if (now - (p.lf || 0) > 1400 && floats.length < 40) { floats.push({ id: p.id, text: "+" + fmt(p.acc), age: 0 }); p.acc = 0; p.lf = now; p.pulse = 1; }
+      if (p.mined === 45 && !p.scanned) { log(`(${p.x + 1},${p.y + 1}) parseli ${GN[p.grade]} çıktı.`, p.grade === "kuru" ? "neg" : "pos"); if (p.grade === "jackpot") S.jackpotSeen = true; }
+      if (depleted(p) || p.left <= 0.5) { p.left = 0; log(`(${p.x + 1},${p.y + 1}) parselinin damarı tükendi.`); }
+      const q = Math.random();
+      if (q < 1 / 1800) { p.left *= 0.7; log(`(${p.x + 1},${p.y + 1}) parselinde göçük: kalan cevherin %30'u gitti.`, "neg"); }
+      else if (q > 1 - 1 / 2400) { p.left = Math.min(p.v0, p.left * 1.25); log(`(${p.x + 1},${p.y + 1}) parselinde yeni damar bulundu.`, "pos"); }
+    }
+    if (S.t % 5 === 0) { S.nwh.push(netWorth()); if (S.nwh.length > 240) S.nwh.shift(); }
+    if (S.t % 2 === 0) checkQuests();
+    if (S.t % 3 === 0) checkChapterClear();
+  }
+
+  /* ---------- işlemler ---------- */
+  function buy(p) {
+    const price = priceOf(p);
+    if (p.owner || depleted(p) || S.wallet < price) { sfx.no(); return false; }
+    S.wallet -= price; p.owner = true; p.paid = price; p.mined = 0; p.earned = 0; p.spent = 0;
+    log(`(${p.x + 1},${p.y + 1}) ${TERRAIN[p.t].name} parseli ${fmt(price)} puana alındı.`); sfx.buy();
+    if (p.scanned && p.grade === "jackpot") S.jackpotSeen = true;
+    checkQuests(); refresh(true); return true;
+  }
+  function scan(p) {
+    const fee = scanFee(p);
+    if (p.owner || p.scanned || S.wallet < fee) { sfx.no(); return; }
+    S.wallet -= fee; p.scanned = true; S.scans++;
+    if (p.grade === "jackpot") S.jackpotSeen = true;
+    log(`(${p.x + 1},${p.y + 1}) taraması: ${GN[p.grade]}.`, p.grade === "kuru" ? "neg" : "pos"); sfx.up();
+    checkQuests(); refresh(true);
+  }
+  function sell(p) {
+    if (!p.owner || dgLocked(p.id)) { sfx.no(); return; }
+    const v = sellValue(p); S.wallet += v;
+    const result = p.earned - p.spent + v - p.paid;
+    if (result > 0) S.soldProfit = true;
+    log(`(${p.x + 1},${p.y + 1}) parseli ${fmt(v)} puana satıldı. Toplam sonuç ${sgn(result)}.`, result >= 0 ? "pos" : "neg"); sfx.sell();
+    Object.assign(p, { owner: false, drill: 0, eff: 0, crew: 0, mined: 0, earned: 0, spent: 0, paid: 0 });
+    checkQuests(); refresh(true);
+  }
+  function upgrade(p, k) {
+    const c = upCost(p, k);
+    if (!p.owner || p[k] >= upMax(k) || S.wallet < c) { sfx.no(); return; }
+    S.wallet -= c; p.spent += c; p[k]++;
+    log(`(${p.x + 1},${p.y + 1}) ${UPS[k].name.toLowerCase()} seviye ${p[k]} oldu.`); sfx.up();
+    checkQuests(); refresh(true);
+  }
+  function turbo() {
+    if (S.wallet < 200 || S.turbo > 0) { sfx.no(); return; }
+    S.wallet -= 200; S.turbo = 60; log("Turbo açıldı: 60 saniye üç kat hız, 2,5 kat enerji gideri."); sfx.up(); refresh(true);
+  }
+
+  /* ---------- canvas ---------- */
+  const cv = $("cv"), ctx = cv.getContext("2d");
+  let bg = null, scale = 1;
+  const plotRect = p => ({ x: GX + p.x * TW + 3, y: GY + p.y * TH + 3, w: TW - 6, h: TH - 6 });
+  function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+  const mixc = (a, b, t) => { const A = Array.isArray(a) ? a : hex(a), B = Array.isArray(b) ? b : hex(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(",")})`; };
+  function rr(c, x, y, w, h, r) { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); }
+
+  function buildBG() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    scale = (cv.clientWidth || W) * dpr / W;
+    cv.width = Math.round(W * scale); cv.height = Math.round(H * scale);
+    bg = document.createElement("canvas"); bg.width = cv.width; bg.height = cv.height;
+    const c = bg.getContext("2d"); c.scale(scale, scale);
+    const gr = c.createLinearGradient(0, 120, 0, H); gr.addColorStop(0, "#2b3626"); gr.addColorStop(1, "#1c2619");
+    c.fillStyle = gr; c.fillRect(0, 128, W, H - 128);
+    for (const p of S.parcels) {
+      const r = plotRect(p), rng = mulberry(p.id * 9973 + 7), base = TCOL[p.t];
+      c.save(); rr(c, r.x, r.y, r.w, r.h, 8); c.clip();
+      const g = c.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
+      g.addColorStop(0, mixc(base, "#ffffff", 0.12)); g.addColorStop(1, mixc(base, "#000000", 0.18));
+      c.fillStyle = g; c.fillRect(r.x, r.y, r.w, r.h);
+      for (let i = 0; i < 26; i++) {
+        const sx = r.x + rng() * r.w, sy = r.y + rng() * r.h, sz = 1 + rng() * 2.4, lite = rng() < 0.5;
+        c.fillStyle = lite ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.16)"; c.beginPath(); c.arc(sx, sy, sz, 0, 7); c.fill();
+      }
+      const n = 2 + Math.floor(rng() * 3);
+      for (let i = 0; i < n; i++) {
+        const dx = r.x + 8 + rng() * (r.w - 16), dy = r.y + 8 + rng() * (r.h - 16);
+        if (p.t === "kiyi") { c.strokeStyle = "rgba(255,255,255,0.28)"; c.lineWidth = 1.4; c.beginPath(); c.moveTo(dx - 9, dy); c.quadraticCurveTo(dx - 4, dy - 4, dx, dy); c.quadraticCurveTo(dx + 4, dy + 4, dx + 9, dy); c.stroke(); }
+        else if (p.t === "vadi") { c.strokeStyle = "#7fb255"; c.lineWidth = 1.4; c.beginPath(); for (let k = -1; k <= 1; k++) { c.moveTo(dx + k * 3, dy + 4); c.lineTo(dx + k * 4.5, dy - 4); } c.stroke(); }
+        else if (p.t === "dag") { c.fillStyle = i % 2 ? "#7c7168" : "#3f3832"; c.beginPath(); c.moveTo(dx - 7, dy + 5); c.lineTo(dx - 2, dy - 6); c.lineTo(dx + 3, dy - 2); c.lineTo(dx + 8, dy + 5); c.closePath(); c.fill(); }
+        else { c.strokeStyle = "rgba(255,235,170,0.35)"; c.lineWidth = 1.6; c.beginPath(); c.arc(dx, dy + 10, 12, Math.PI * 1.15, Math.PI * 1.85); c.stroke(); if (i === 0) { c.strokeStyle = "#4f7a3a"; c.lineWidth = 3; c.beginPath(); c.moveTo(dx, dy + 6); c.lineTo(dx, dy - 6); c.moveTo(dx - 4, dy); c.lineTo(dx - 4, dy - 4); c.moveTo(dx + 4, dy - 1); c.lineTo(dx + 4, dy - 5); c.stroke(); } }
+      }
+      c.restore();
+    }
+  }
+
+  function sky(ts) {
+    const phase = ((tv + 30) % DAY) / DAY, e = Math.sin(phase * Math.PI * 2);
+    const night = clamp((0.15 - e) / 0.6, 0, 1);
+    const g = ctx.createLinearGradient(0, 0, 0, 140);
+    g.addColorStop(0, mixc([95, 168, 211], [11, 19, 48], night)); g.addColorStop(1, mixc([207, 232, 242], [39, 49, 90], night));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, 140);
+    // yıldızlar
+    if (night > 0.2) { ctx.fillStyle = `rgba(255,255,255,${night * 0.8})`; const r = mulberry(5); for (let i = 0; i < 50; i++) { const sx = r() * W, sy = r() * 100, tw = 0.5 + 0.5 * Math.sin(ts * 2 + i); ctx.globalAlpha = night * (0.4 + 0.6 * tw); ctx.fillRect(sx, sy, 1.6, 1.6); } ctx.globalAlpha = 1; }
+    const px = W * ((phase * 2) % 1);
+    if (e >= 0) { const sy = 118 - 84 * e; const rg = ctx.createRadialGradient(px, sy, 4, px, sy, 46); rg.addColorStop(0, "rgba(255,230,140,0.9)"); rg.addColorStop(1, "rgba(255,230,140,0)"); ctx.fillStyle = rg; ctx.fillRect(px - 50, sy - 50, 100, 100); ctx.fillStyle = "#ffe9a0"; ctx.beginPath(); ctx.arc(px, sy, 17, 0, 7); ctx.fill(); }
+    else { const sy = 118 + 84 * e; ctx.fillStyle = "#e8ecf5"; ctx.beginPath(); ctx.arc(px, sy, 13, 0, 7); ctx.fill(); ctx.fillStyle = mixc([232, 236, 245], [11, 19, 48], 0.35); ctx.beginPath(); ctx.arc(px + 5, sy - 2, 11, 0, 7); ctx.fill(); }
+    // bulutlar
+    ctx.fillStyle = `rgba(255,255,255,${0.75 - night * 0.6})`;
+    for (let i = 0; i < 4; i++) { const cx = ((ts * (6 + i * 2) + i * 260) % (W + 240)) - 120, cy = 34 + i * 15; ctx.beginPath(); ctx.ellipse(cx, cy, 34, 9, 0, 0, 7); ctx.ellipse(cx + 18, cy - 6, 20, 9, 0, 0, 7); ctx.ellipse(cx - 18, cy - 3, 18, 7, 0, 0, 7); ctx.fill(); }
+    // tepeler
+    const far = [[0, 120], [90, 96], [180, 112], [300, 84], [420, 118], [560, 92], [690, 114], [800, 80], [900, 108], [960, 98]];
+    const near = [[0, 134], [120, 116], [250, 130], [380, 122], [520, 136], [640, 118], [780, 132], [900, 120], [960, 130]];
+    for (const [pts, d, n] of [[far, [86, 110, 128], [26, 36, 66]], [near, [64, 86, 70], [16, 26, 40]]]) {
+      ctx.fillStyle = mixc(d, n, night); ctx.beginPath(); ctx.moveTo(0, 150); pts.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(W, 150); ctx.closePath(); ctx.fill();
+    }
+    return night;
+  }
+
+  const OFF = { x: 330, y: 22, w: 300, h: 118 };
+  function drawOffice(ts, night) {
+    const { x, y, w, h } = OFF, hot = hover === "office";
+    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h + 2, w * 0.56, 7, 0, 0, 7); ctx.fill();
+    // gövde
+    const bodyY = y + 38, bh = h - 38;
+    ctx.fillStyle = hot ? "#a85b48" : "#92503f"; ctx.fillRect(x, bodyY, w, bh);
+    ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 1;
+    for (let r = 0; r < 7; r++) { const yy = bodyY + r * (bh / 7); ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke(); for (let k = r % 2 ? 0 : 12; k < w; k += 24) { ctx.beginPath(); ctx.moveTo(x + k, yy); ctx.lineTo(x + k, yy + bh / 7); ctx.stroke(); } }
+    // çatı
+    ctx.fillStyle = "#3a2a24"; ctx.beginPath(); ctx.moveTo(x - 16, bodyY + 2); ctx.lineTo(x + w / 2, y - 4); ctx.lineTo(x + w + 16, bodyY + 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#4d3a32"; ctx.beginPath(); ctx.moveTo(x - 16, bodyY + 2); ctx.lineTo(x + w / 2, y - 4); ctx.lineTo(x + w / 2, bodyY + 2); ctx.closePath(); ctx.fill();
+    // tabela
+    ctx.fillStyle = "#1d1612"; rr(ctx, x + w / 2 - 98, y + 18, 196, 26, 5); ctx.fill();
+    ctx.strokeStyle = "#f2b441"; ctx.lineWidth = 2; rr(ctx, x + w / 2 - 98, y + 18, 196, 26, 5); ctx.stroke();
+    ctx.fillStyle = "#f2b441"; ctx.font = "700 16px 'Bricolage Grotesque', system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("SATIŞ OFİSİ", x + w / 2, y + 32);
+    // pencereler
+    const glow = 0.55 + night * 0.45;
+    for (const wx of [x + 22, x + w - 82]) {
+      ctx.fillStyle = `rgb(${Math.round(210 * glow + 30)},${Math.round(170 * glow + 30)},${Math.round(80 * glow + 20)})`; ctx.fillRect(wx, bodyY + 22, 60, 36);
+      ctx.strokeStyle = "#3a2a24"; ctx.lineWidth = 3; ctx.strokeRect(wx, bodyY + 22, 60, 36); ctx.beginPath(); ctx.moveTo(wx + 30, bodyY + 22); ctx.lineTo(wx + 30, bodyY + 58); ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(40,20,10,0.8)"; ctx.beginPath(); ctx.arc(x + 52, bodyY + 40, 7, 0, 7); ctx.fill(); ctx.fillRect(x + 44, bodyY + 46, 16, 12); // memur
+    // kapı + tente
+    ctx.fillStyle = "#4a3022"; rr(ctx, x + w / 2 - 20, bodyY + 24, 40, bh - 24, [6, 6, 0, 0]); ctx.fill();
+    ctx.fillStyle = "#f2b441"; ctx.beginPath(); ctx.arc(x + w / 2 + 11, bodyY + 52, 2.4, 0, 7); ctx.fill();
+    for (let i = 0; i < 6; i++) { ctx.fillStyle = i % 2 ? "#f1ece0" : "#c5463a"; ctx.fillRect(x + w / 2 - 36 + i * 12, bodyY + 12, 12, 10); }
+    // bayrak
+    ctx.strokeStyle = "#ddd"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + w + 6, y + 6); ctx.lineTo(x + w + 6, y + 54); ctx.stroke();
+    ctx.fillStyle = "#f2b441"; ctx.beginPath(); ctx.moveTo(x + w + 6, y + 8); for (let i = 0; i <= 20; i++) ctx.lineTo(x + w + 6 + i * 1.2, y + 8 + Math.sin(ts * 4 + i * 0.4) * 2 + i * 0.1); for (let i = 20; i >= 0; i--) ctx.lineTo(x + w + 6 + i * 1.2, y + 24 + Math.sin(ts * 4 + i * 0.4) * 2); ctx.closePath(); ctx.fill();
+    // fırsat rozeti
+    const n = S.offers.filter(o => S.t < S.offerUntil && !S.parcels[o.id].owner).length;
+    if (n) { ctx.fillStyle = "#ef6a5b"; ctx.beginPath(); ctx.arc(x + w - 4, y + 22, 13, 0, 7); ctx.fill(); ctx.fillStyle = "#fff"; ctx.font = "700 13px 'IBM Plex Mono', monospace"; ctx.fillText(String(n), x + w - 4, y + 23); }
+    if (hot) { ctx.fillStyle = "rgba(0,0,0,0.7)"; rr(ctx, x + w / 2 - 70, y + h + 6, 140, 20, 6); ctx.fill(); ctx.fillStyle = "#fff"; ctx.font = "600 12px 'Bricolage Grotesque', sans-serif"; ctx.fillText("Girmek için dokun", x + w / 2, y + h + 16); }
+  }
+
+  /* madenci: ayak noktası (x,y); s ölçek; dir ±1; swing 0..1 */
+  function miner(x, y, s, dir, swing, carry, shirt) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s * dir, s);
+    ctx.fillStyle = "rgba(0,0,0,0.28)"; ctx.beginPath(); ctx.ellipse(0, 1, 6, 2, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#2c3a58"; ctx.lineWidth = 2.4; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-2, -8); ctx.lineTo(-3, 0); ctx.moveTo(2, -8); ctx.lineTo(3, 0); ctx.stroke();
+    ctx.fillStyle = shirt; rr(ctx, -4.5, -17, 9, 10, 2); ctx.fill();
+    ctx.fillStyle = "#e5b88c"; ctx.beginPath(); ctx.arc(0, -21, 3.8, 0, 7); ctx.fill();
+    ctx.fillStyle = "#f2c230"; ctx.beginPath(); ctx.arc(0, -22, 4.4, Math.PI, 0); ctx.fill(); ctx.fillRect(-5, -22.4, 10, 1.6);
+    ctx.fillStyle = "#fff6c0"; ctx.beginPath(); ctx.arc(3.8, -23, 1.4, 0, 7); ctx.fill();
+    if (carry) { ctx.fillStyle = "#7a5a3a"; rr(ctx, 1, -20, 7, 7, 2); ctx.fill(); ctx.fillStyle = "#f2b441"; ctx.beginPath(); ctx.arc(4.5, -21, 1.6, 0, 7); ctx.fill(); ctx.strokeStyle = "#e5b88c"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(3, -14); ctx.stroke(); }
+    else {
+      const a = -1.1 + swing * 2.2;
+      ctx.save(); ctx.translate(1, -15); ctx.rotate(a);
+      ctx.strokeStyle = "#e5b88c"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(7, 0); ctx.stroke();
+      ctx.strokeStyle = "#8a6a45"; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(3, 0); ctx.lineTo(13, 0); ctx.stroke();
+      ctx.strokeStyle = "#cfd6dd"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(12, -4); ctx.lineTo(12, 4); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  const SHIRTS = ["#d8693c", "#3e7fd0", "#4fa56a", "#b05cc0", "#d8b43c"];
+  function drawPlot(p, ts, night) {
+    const r = plotRect(p), idx = p.id, dep = depleted(p);
+    const cx = r.x + r.w * 0.5, cy = r.y + r.h * 0.55;
+    const s = r.w / 114 * 1.05;
+    if (!p.owner) {
+      // çit
+      ctx.strokeStyle = dep ? "rgba(0,0,0,0.4)" : "rgba(235,215,170,0.55)"; ctx.lineWidth = 1.6; ctx.setLineDash([4, 5]); rr(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, 7); ctx.stroke(); ctx.setLineDash([]);
+      if (dep) { ctx.fillStyle = "rgba(0,0,0,0.45)"; rr(ctx, r.x, r.y, r.w, r.h, 8); ctx.fill(); ctx.fillStyle = "#cfd6dd"; ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.textAlign = "center"; ctx.fillText("TÜKENMİŞ", cx, cy); return; }
+      // satılık tabelası
+      const sx = r.x + r.w * 0.3, sy = r.y + r.h * 0.72;
+      ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.beginPath(); ctx.ellipse(sx, sy + 2, 12, 3, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = "#6b4a2c"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - 26 * s); ctx.stroke();
+      ctx.fillStyle = "#f4ead0"; rr(ctx, sx - 6, sy - 34 * s, 56 * s + 14, 20 * s + 3, 3); ctx.fill();
+      ctx.strokeStyle = "#6b4a2c"; ctx.lineWidth = 1.4; rr(ctx, sx - 6, sy - 34 * s, 56 * s + 14, 20 * s + 3, 3); ctx.stroke();
+      ctx.fillStyle = "#2a1c10"; ctx.font = `700 ${Math.round(11 * s + 1)}px 'IBM Plex Mono', monospace`; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      const o = offerOf(p); ctx.fillText(fmt(priceOf(p)), sx - 1, sy - 24 * s);
+      ctx.textAlign = "center";
+      if (p.scanned) { ctx.fillStyle = GCOL[p.grade]; ctx.beginPath(); ctx.moveTo(cx + 22, cy - 6); ctx.lineTo(cx + 30, cy - 14); ctx.lineTo(cx + 38, cy - 6); ctx.lineTo(cx + 30, cy + 6); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1; ctx.stroke(); }
+      else { ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.font = "700 20px 'Bricolage Grotesque', sans-serif"; ctx.fillText("?", cx + 30, cy - 2); }
+      if (o) { ctx.fillStyle = "#ef6a5b"; rr(ctx, r.x + r.w - 40, r.y + 6, 34, 16, 8); ctx.fill(); ctx.fillStyle = "#fff"; ctx.font = "700 10px 'IBM Plex Mono', monospace"; ctx.fillText("−%" + Math.round(o.disc * 100), r.x + r.w - 23, r.y + 14.5); }
+      return;
+    }
+    const frac = 1 - p.left / p.v0, working = !dep && !p.idle && S.wallet >= 0;
+    // çit
+    ctx.strokeStyle = "#f2b441"; ctx.lineWidth = 2; rr(ctx, r.x + 1, r.y + 1, r.w - 2, r.h - 2, 8); ctx.stroke();
+    // çukur
+    const rx = r.w * 0.25 + frac * r.w * 0.08, ry = r.h * 0.17 + frac * r.h * 0.05;
+    ctx.fillStyle = "rgba(60,38,20,0.9)"; ctx.beginPath(); ctx.ellipse(cx, cy, rx + 5, ry + 4, 0, 0, 7); ctx.fill();
+    if (dep) {
+      ctx.fillStyle = "#4b6a7a"; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(cx, cy, rx * 0.6 + Math.sin(ts * 2) * 2, ry * 0.6, 0, 0, 7); ctx.stroke();
+      ctx.fillStyle = "rgba(0,0,0,0.35)"; rr(ctx, r.x, r.y, r.w, r.h, 8); ctx.fill();
+      ctx.fillStyle = "#e8eee4"; ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.textAlign = "center"; ctx.fillText("TÜKENDİ", cx, r.y + r.h - 10);
+    } else {
+      const rg = ctx.createRadialGradient(cx, cy - ry * 0.3, 2, cx, cy, rx);
+      rg.addColorStop(0, "#150d07"); rg.addColorStop(1, "#4a3018"); ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; for (let k = 1; k <= 3; k++) { ctx.beginPath(); ctx.ellipse(cx, cy + k, rx * (1 - k * 0.2), ry * (1 - k * 0.2), 0, 0, 7); ctx.stroke(); }
+      const col = known(p) ? GCOL[p.grade] : "#cfae66", rng = mulberry(p.id + 77);
+      for (let i = 0; i < 6; i++) { const a = rng() * 6.28, d = rng() * 0.8, gx = cx + Math.cos(a) * rx * d, gy = cy + Math.sin(a) * ry * d, tw = reduced ? 0.8 : 0.5 + 0.5 * Math.sin(ts * 3 + i * 2); ctx.globalAlpha = 0.45 + tw * 0.55; ctx.fillStyle = col; ctx.fillRect(gx - 1.5, gy - 1.5, 3, 3); ctx.globalAlpha = 1; }
+    }
+    // yığın
+    const mh = 6 + frac * 15, mx = r.x + r.w * 0.84, my = r.y + r.h * 0.66;
+    ctx.fillStyle = "#6b5133"; ctx.beginPath(); ctx.moveTo(mx - 15 - frac * 6, my); ctx.quadraticCurveTo(mx, my - mh * 2, mx + 15 + frac * 6, my); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.beginPath(); ctx.moveTo(mx - 15 - frac * 6, my); ctx.quadraticCurveTo(mx - 4, my - mh * 1.8, mx, my - mh * 1.2); ctx.lineTo(mx - 4, my); ctx.closePath(); ctx.fill();
+    // vagon + ray
+    const kx = r.x + r.w * 0.17, ky = r.y + r.h * 0.8;
+    ctx.strokeStyle = "#3a3a3a"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(r.x + 6, ky + 6); ctx.lineTo(cx - rx * 0.6, ky + 6); ctx.stroke();
+    ctx.fillStyle = "#59636d"; ctx.beginPath(); ctx.moveTo(kx - 11, ky - 8); ctx.lineTo(kx + 11, ky - 8); ctx.lineTo(kx + 8, ky + 3); ctx.lineTo(kx - 8, ky + 3); ctx.closePath(); ctx.fill();
+    const pile = clamp(frac * 8 + (p.pulse || 0) * 3, 0, 9);
+    ctx.fillStyle = GCOL[known(p) ? p.grade : "zengin"]; ctx.beginPath(); ctx.ellipse(kx, ky - 8, 9, 1.5 + pile * 0.4, 0, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = "#222"; for (const wx of [-6, 6]) { ctx.beginPath(); ctx.arc(kx + wx, ky + 4, 2.6, 0, 7); ctx.fill(); }
+    p.pulse = Math.max(0, (p.pulse || 0) - 0.03);
+    // matkap kulesi (seviye 2+)
+    if (p.drill >= 2 && !dep) {
+      const tx = cx - rx * 0.95, ty = cy - ry - 20 * s, sp = working && !reduced ? Math.sin(ts * 22) * 1.6 : 0;
+      ctx.strokeStyle = towerCol(p); ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - 9, cy + 2); ctx.moveTo(tx, ty); ctx.lineTo(tx + 9, cy + 2); ctx.moveTo(tx, ty); ctx.lineTo(tx, cy - 4); ctx.stroke();
+      ctx.strokeStyle = "#c8ced4"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(tx, ty + 4); ctx.lineTo(tx + sp, cy + ry * 0.4); ctx.stroke();
+      if (p.drill >= 3) { ctx.fillStyle = p.drill >= 5 ? "#ffd470" : "#cfd6dd"; ctx.fillRect(tx - 3, ty - 3, 6, 5); }
+    }
+    // madenciler
+    const n = crewN(p), spots = [[210, 1], [330, -1], [90, 1], [150, 1], [30, -1]], list = [];
+    for (let i = 0; i < n; i++) {
+      const hauler = n >= 2 && i === 1;
+      if (hauler) {
+        const tt = reduced || !working ? 0.25 : ((ts * 0.22 + p.id * 0.13) % 1), u = tt < 0.5 ? tt * 2 : 2 - tt * 2, carry = tt < 0.5;
+        const x0 = cx - rx - 2, y0 = cy + ry * 0.4, x1 = kx + 10, y1 = ky + 4;
+        list.push({ y: y0 + (y1 - y0) * u, f: () => miner(x0 + (x1 - x0) * u, y0 + (y1 - y0) * u, s, tt < 0.5 ? -1 : 1, 0.2, carry && working, shirts()[i % 5]) });
+      } else {
+        const [deg, dir] = spots[i % 5], a = deg * Math.PI / 180, mx2 = cx + Math.cos(a) * (rx + 7), my2 = cy + Math.sin(a) * (ry + 5) + 6;
+        const k = 2.4 + p.drill * 0.7, sw = working && !reduced ? 0.5 + 0.5 * Math.sin(ts * k * 2.2 + i * 1.7) : 0.1;
+        list.push({ y: my2, f: () => miner(mx2, my2, s, my2 > cy ? (Math.cos(a) > 0 ? -1 : 1) : (Math.cos(a) > 0 ? -1 : 1), sw, false, shirts()[i % 5]) });
+        if (working && !reduced && sw > 0.93 && dust.length < 120 && Math.random() < 0.5) dust.push({ x: cx + Math.cos(a) * rx * 0.85, y: cy + Math.sin(a) * ry * 0.7, vx: (Math.random() - 0.5) * 18, vy: -14 - Math.random() * 14, life: 1, c: p.drill >= 2 ? "#cdb98f" : "#8a6c46" });
+      }
+    }
+    list.sort((a, b) => a.y - b.y).forEach(o => o.f());
+    // verimlilik panelleri
+    for (let i = 0; i < p.eff; i++) { const px = r.x + r.w - 12 - i * 9, py = r.y + r.h - 9; ctx.fillStyle = "#274a7a"; ctx.fillRect(px - 3.5, py - 3, 7, 5); ctx.strokeStyle = "#9ec5ee"; ctx.lineWidth = 0.7; ctx.strokeRect(px - 3.5, py - 3, 7, 5); }
+    if (DG.phase !== "idle" && DG.bets.some(x => x && x.pid === p.id)) {
+      const col = DG.phase === "crash" ? "#ef6a5b" : "#ffd470";
+      ctx.fillStyle = "rgba(8,12,10,0.8)"; rr(ctx, r.x + 8, r.y + r.h * 0.3, r.w - 16, r.h * 0.34, 8); ctx.fill();
+      ctx.fillStyle = col; ctx.font = "800 20px 'IBM Plex Mono', monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(DG.mult.toFixed(2) + "x", r.x + r.w / 2, r.y + r.h * 0.43);
+      ctx.font = "600 9px 'IBM Plex Mono', monospace"; ctx.fillText("DERİN KAZI", r.x + r.w / 2, r.y + r.h * 0.57);
+    }
+    // rozet
+    const net = netPerSec(p) * 60, txt = dep ? "tükendi" : p.idle ? "enerji yok" : (net >= 0 ? "+" : "−") + fmt(Math.abs(net)) + "/dk";
+    ctx.font = "600 10.5px 'IBM Plex Mono', monospace"; const tw = ctx.measureText(txt).width + 10;
+    ctx.fillStyle = "rgba(8,12,10,0.78)"; rr(ctx, r.x + 5, r.y + 5, tw, 16, 8); ctx.fill();
+    ctx.fillStyle = dep ? "#cfd6dd" : p.idle ? "#f2b441" : net >= 0 ? "#8fdc7a" : "#ef6a5b"; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(txt, r.x + 10, r.y + 13.5);
+    // damar çubuğu
+    ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fillRect(r.x + 5, r.y + r.h - 5, r.w - 10, 3); ctx.fillStyle = "#f2b441"; ctx.fillRect(r.x + 5, r.y + r.h - 5, (r.w - 10) * (p.left / p.v0), 3);
+  }
+
+  function drawAmbient(ts, night) {
+    for (const p of S.parcels) if (p.t === "kiyi" && !p.owner && !depleted(p)) {
+      const r = plotRect(p); ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 1.3;
+      for (let k = 0; k < 3; k++) { const yy = r.y + 14 + k * 24 + Math.sin(ts * 1.3 + k + p.id) * 3; ctx.beginPath(); for (let x = 0; x <= r.w - 16; x += 4) { const px = r.x + 8 + x, py = yy + Math.sin(x * 0.18 + ts * 2 + k) * 2; x ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.stroke(); }
+    }
+    ctx.fillStyle = "rgba(210,214,218,0.35)"; ctx.strokeStyle = ctx.fillStyle;
+    for (let k = 0; k < 5; k++) { const t = (ts * 0.35 + k * 0.2) % 1, sx = OFF.x + OFF.w - 52 + Math.sin(t * 6 + k) * 5 + t * 18, sy2 = OFF.y + 6 - t * 40; ctx.globalAlpha = (1 - t) * 0.45; ctx.beginPath(); ctx.arc(sx, sy2, 3 + t * 8, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    if (night < 0.6) { ctx.strokeStyle = `rgba(30,40,50,${0.8 - night})`; ctx.lineWidth = 1.6; for (let k = 0; k < 3; k++) { const bx = ((ts * 22 + k * 330) % (W + 80)) - 40, by = 70 + k * 16 + Math.sin(ts * 2 + k) * 4, fl = Math.sin(ts * 9 + k) * 3; ctx.beginPath(); ctx.moveTo(bx - 7, by - fl); ctx.quadraticCurveTo(bx - 3, by - 4, bx, by); ctx.quadraticCurveTo(bx + 3, by - 4, bx + 7, by - fl); ctx.stroke(); } }
+  }
+  function draw(ts) {
+    if (!bg) return;
+    tv += (S.t - tv) * 0.15;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0); ctx.clearRect(0, 0, W, H);
+    const night = sky(ts);
+    ctx.drawImage(bg, 0, 0, W, H);
+    ctx.textBaseline = "middle"; ctx.textAlign = "center";
+    drawOffice(ts, night); drawAmbient(ts, night);
+    for (const p of S.parcels) { ctx.save(); drawPlot(p, ts, night); ctx.restore(); }
+    // toz ve yüzen yazılar
+    const dt = 1 / 60;
+    for (let i = dust.length - 1; i >= 0; i--) { const d = dust[i]; d.life -= dt * 1.8; d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 40 * dt; if (d.life <= 0) { dust.splice(i, 1); continue; } ctx.globalAlpha = d.life * 0.8; ctx.fillStyle = d.c; ctx.beginPath(); ctx.arc(d.x, d.y, 1.8 * d.life + 0.6, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    for (let i = floats.length - 1; i >= 0; i--) {
+      const f = floats[i]; f.age += dt; if (f.age > 1.6) { floats.splice(i, 1); continue; }
+      const r = plotRect(S.parcels[f.id]); ctx.globalAlpha = 1 - f.age / 1.6; ctx.fillStyle = "#ffd470"; ctx.font = "700 13px 'IBM Plex Mono', monospace"; ctx.textAlign = "center"; ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 3;
+      ctx.strokeText(f.text, r.x + r.w / 2, r.y + r.h * 0.4 - f.age * 24); ctx.fillText(f.text, r.x + r.w / 2, r.y + r.h * 0.4 - f.age * 24);
+    }
+    ctx.globalAlpha = 1;
+    if (skin("map") === "kis" && !reduced) { ctx.fillStyle = "rgba(255,255,255,0.85)"; for (let i = 0; i < 90; i++) { const fx = (i * 97.3 + Math.sin(ts * 0.6 + i) * 16 + 960) % W, fy = (i * 53.7 + ts * (28 + (i % 5) * 11)) % H; ctx.beginPath(); ctx.arc(fx, fy, 1.1 + (i % 3) * 0.6, 0, 7); ctx.fill(); } }
+    // gece
+    if (night > 0.02) {
+      ctx.fillStyle = `rgba(6,12,34,${night * 0.5})`; ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "lighter";
+      for (const p of S.parcels) if (p.owner && !depleted(p)) { const r = plotRect(p), g = ctx.createRadialGradient(r.x + r.w / 2, r.y + r.h * 0.5, 4, r.x + r.w / 2, r.y + r.h * 0.5, r.w * 0.7); g.addColorStop(0, `rgba(255,200,110,${0.34 * night})`); g.addColorStop(1, "rgba(255,200,110,0)"); ctx.fillStyle = g; ctx.fillRect(r.x - 10, r.y - 10, r.w + 20, r.h + 20); }
+      for (let i = 0; i < 16; i++) { const fx = GX + 40 + ((Math.sin(ts * 0.3 + i * 7) * 0.5 + 0.5) * (COLS * TW - 80)), fy = GY + 30 + ((Math.cos(ts * 0.25 + i * 3) * 0.5 + 0.5) * (ROWS * TH - 60)), a = (0.5 + 0.5 * Math.sin(ts * 3 + i)) * night; const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, 9); fg.addColorStop(0, `rgba(220,255,120,${a})`); fg.addColorStop(1, "rgba(220,255,120,0)"); ctx.fillStyle = fg; ctx.fillRect(fx - 9, fy - 9, 18, 18); }
+      ctx.globalCompositeOperation = "source-over";
+    }
+    // seçim ve üzerine gelme
+    for (const id of [selected, typeof hover === "number" ? hover : null]) {
+      if (id === null) continue; const r = plotRect(S.parcels[id]);
+      ctx.strokeStyle = id === selected ? "#ffffff" : "rgba(255,255,255,0.6)"; ctx.lineWidth = id === selected ? 2.5 : 1.5;
+      if (id === selected) { ctx.setLineDash([7, 5]); ctx.lineDashOffset = -ts * 18; }
+      rr(ctx, r.x - 1, r.y - 1, r.w + 2, r.h + 2, 9); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (typeof hover === "number") tooltip(S.parcels[hover]);
+  }
+  function tooltip(p) {
+    const lines = [`Parsel ${p.x + 1}-${p.y + 1} · ${TERRAIN[p.t].name}`];
+    if (p.owner) { lines.push(`Net ${sgn(netPerSec(p) * 60)}/dk`, `Damar %${Math.round(p.left / p.v0 * 100)}`); }
+    else { const o = offerOf(p); lines.push(`Fiyat ${fmt(priceOf(p))}${o ? ` (−%${Math.round(o.disc * 100)})` : ""}`, p.scanned ? `Zenginlik: ${GN[p.grade]}` : "Zenginlik bilinmiyor"); }
+    ctx.font = "600 12px 'Bricolage Grotesque', sans-serif"; const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 18, h = lines.length * 17 + 10;
+    let x = mouse.x + 14, y = mouse.y + 14; if (x + w > W - 4) x = mouse.x - w - 10; if (y + h > H - 4) y = mouse.y - h - 10;
+    ctx.fillStyle = "rgba(8,12,10,0.92)"; rr(ctx, x, y, w, h, 8); ctx.fill(); ctx.strokeStyle = "#2a382f"; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = "#e8eee4"; ctx.textAlign = "left"; lines.forEach((l, i) => { ctx.fillStyle = i ? "#b9c6bd" : "#fff"; ctx.fillText(l, x + 9, y + 14 + i * 17); });
+  }
+
+  function pick(ev) {
+    const b = cv.getBoundingClientRect(), x = (ev.clientX - b.left) / b.width * W, y = (ev.clientY - b.top) / b.height * H;
+    mouse = { x, y };
+    if (x >= OFF.x - 16 && x <= OFF.x + OFF.w + 16 && y >= OFF.y - 4 && y <= OFF.y + OFF.h) return "office";
+    const cx = Math.floor((x - GX) / TW), cy = Math.floor((y - GY) / TH);
+    if (cx >= 0 && cx < COLS && cy >= 0 && cy < ROWS) return cy * COLS + cx;
+    return null;
+  }
+  cv.addEventListener("pointermove", e => { hover = pick(e); cv.style.cursor = hover === null ? "default" : "pointer"; });
+  cv.addEventListener("pointerleave", () => { hover = null; });
+  cv.addEventListener("click", e => {
+    const h = pick(e);
+    if (h === "office") openOffice(); else if (h !== null) { selected = h; if (S.parcels[h].owner && !DG.bets.some(Boolean)) DG.pid = h; refresh(true); }
+  });
+  cv.addEventListener("keydown", e => {
+    if (e.key === "o" || e.key === "O") { openOffice(); e.preventDefault(); return; }
+    const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (d) { e.preventDefault(); const cur = selected === null ? 0 : selected; const x = clamp((cur % COLS) + d[0], 0, COLS - 1), y = clamp(Math.floor(cur / COLS) + d[1], 0, ROWS - 1); selected = selected === null ? 0 : y * COLS + x; refresh(true); }
+  });
+
+  /* ---------- DOM ---------- */
+  const cache = {};
+  function setHTML(id, html) { if (cache[id] !== html) { cache[id] = html; $(id).innerHTML = html; } }
+  const pips = (n, max = 5) => `<span class="pips">${Array.from({ length: max }, (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("")}</span>`;
+
+  function renderPanel() {
+    if (selected === null) {
+      const mine = ownedList(), net = mine.reduce((a, p) => a + netPerSec(p) * 60, 0);
+      setHTML("panel", `<h2>Parsellerim</h2><p class="note">Haritadan bir parsele dokun, ya da Satış Ofisi'ne girip ilanlara bak. Taramayla zenginliği önceden öğrenebilirsin.</p>
+        <dl class="kv"><dt>Sahip olduğum parsel</dt><dd>${mine.length}</dd><dt>Dakikalık net</dt><dd class="${net >= 0 ? "pos" : "neg"}">${sgn(net)}</dd></dl>
+        ${mine.length ? `<ul class="mine">${mine.map(p => `<li><button data-sel="${p.id}"><span>Parsel ${p.x + 1}-${p.y + 1} · ${TERRAIN[p.t].name}</span><span class="${netPerSec(p) >= 0 ? "pos" : "neg"}" style="font-family:var(--font-mono)">${depleted(p) ? "tükendi" : sgn(netPerSec(p) * 60)}</span></button></li>`).join("")}</ul>` : `<div class="verdict">Henüz parselin yok. Satış Ofisi'nde başlangıç için uygun fiyatlı parseller var.</div>`}
+        <div class="actions"><button class="btn primary" data-act="office">Satış Ofisi'ne git</button></div>`);
+      return;
+    }
+    const p = S.parcels[selected], T = TERRAIN[p.t], gk = p.owner ? known(p) : p.scanned;
+    const head = `<div><h2>Parsel ${p.x + 1}-${p.y + 1} · ${T.name}</h2><p class="note">Liste fiyatı ${fmt(p.price)} puan. ${gk ? `Zenginlik: <b>${GN[p.grade]}</b>` : "Zenginlik bilinmiyor."}</p></div>`;
+    if (!p.owner) {
+      const price = priceOf(p), fee = scanFee(p), o = offerOf(p);
+      let verdict = "Zenginlik bilinmiyor: bu parsel kazandırabilir de, bedelini çıkarmayabilir de.";
+      if (depleted(p)) verdict = "Bu parselin damarı tükenmiş, satışta değil.";
+      else if (p.scanned) { const be = p.v0 * 0.9 - p.price * 0.1 - price; verdict = p.grade === "kuru" ? "Tarama sonucu kuru. Çıkaracağı cevher alış bedelinin altında kalır." : `Tarama sonucu ${GN[p.grade]}. Yaklaşık ömür boyu sonuç: <b class="${be >= 0 ? "pos" : "neg"}">${sgn(be)}</b> puan (piyasa 1,00x iken).`; }
+      setHTML("panel", head + `<div class="verdict">${verdict}</div>${o ? `<div class="verdict">Günün fırsatı: −%${Math.round(o.disc * 100)} indirimle ${fmt(price)} puan.</div>` : ""}
+        <div class="actions"><button class="btn primary" data-act="buy" ${depleted(p) || S.wallet < price ? "disabled" : ""}>Satın al · ${fmt(price)}</button>
+        <button class="btn scan" data-act="scan" ${p.scanned || depleted(p) || S.wallet < fee ? "disabled" : ""}>${p.scanned ? "Tarandı" : `Tara · ${fmt(fee)}`}</button></div>`);
+      return;
+    }
+    const net = netPerSec(p) * 60, result = p.earned - p.spent - p.paid;
+    const up = k => { const c = upCost(p, k), m = upMax(k), lv = p[k]; return `<div class="up"><div><strong>${UPS[k].name}${pips(lv, m)}</strong><small>${UPS[k].desc}</small></div><button class="btn sm" data-act="${k}" ${lv >= m || S.wallet < c ? "disabled" : ""}>${lv >= m ? "Maks" : fmt(c)}</button></div>`; };
+    setHTML("panel", head + `
+      <div><h3>Damar</h3><div class="meter"><i style="width:${(p.left / p.v0) * 100}%"></i></div>
+      <p class="note" style="margin-top:4px;font-family:var(--font-mono)">${fmt(p.left)} / ${fmt(p.v0)} puanlık cevher kaldı</p></div>
+      <dl class="kv">
+        <dt>Dakikalık üretim</dt><dd>${fmt(orePerSec(p) * S.m * 60)}</dd>
+        <dt>Dakikalık enerji + maaş</dt><dd>−${fmt(costPerSec(p) * 60)}</dd>
+        <dt>Dakikalık net</dt><dd class="${net >= 0 ? "pos" : "neg"}">${sgn(net)}</dd>
+        <dt>Çıkan cevher</dt><dd>${fmt(p.earned)}</dd>
+        <dt>Gider + yükseltme</dt><dd>−${fmt(p.spent)}</dd>
+        <dt>Alış (${fmt(p.paid)}) dahil sonuç</dt><dd class="${result >= 0 ? "pos" : "neg"}">${sgn(result)}</dd>
+        <dt>Satış değeri</dt><dd>${fmt(sellValue(p))}</dd></dl>
+      <div><h3>Hızlandırıcılar</h3>${up("crew")}${up("drill")}${up("eff")}</div>
+      ${digHTML(p)}
+      <div class="actions"><button class="btn danger" data-act="sell" ${dgLocked(p.id) ? "disabled" : ""}>Parseli sat · ${fmt(sellValue(p))}</button></div>`);
+  }
+  function digHTML(p) {
+    const ds = S.digStats, dis = depleted(p) || p.left < 50;
+    return `<div><h3>Derin Kazı</h3><p class="note">Parselin rezerv cevheriyle oynanan crash oyunu. Matkap kuyuda derine iner, çarpan yükselir; göçükten önce çekersen kazanırsın.</p>
+      <div class="actions" style="margin:8px 0"><button class="btn primary" data-act="digopen" ${dis ? "disabled" : ""}>Derin Kazı'ya git</button></div>
+      <p class="note">Kazı: ${ds.runs} · Çekilen: ${ds.wins} · En iyi: ${ds.best ? ds.best.toFixed(2) + "x" : "—"}</p></div>`;
+  }
+  let lastW = null;
+  function renderStats() {
+    const mine = ownedList(), nw = netWorth(), d = nw - START, per = mine.reduce((a, p) => a + netPerSec(p) * 60, 0);
+    const fl = lastW === null ? "" : S.wallet > lastW + 25 ? " fu" : S.wallet < lastW - 25 ? " fd" : ""; if (lastW === null || Math.abs(S.wallet - lastW) > 25) lastW = S.wallet;
+    const cp = chapterProgress();
+    setHTML("stats", `<div class="stat${fl}"><span>Bakiye</span><b>${fmt(S.wallet)}</b></div><div class="stat"><span>Net değer</span><b>${fmt(nw)}</b></div>` +
+      `<div class="stat"><span>Bölüm</span><b>${(S.chapter || 0) + 1}/21</b></div>` +
+      `<div class="stat"><span>Tüketim</span><b>${cp.done}/${cp.total}</b></div>` +
+      `<div class="stat"><span>Net / dakika</span><b class="${per >= 0 ? "pos" : "neg"}">${sgn(per)}</b></div>`);
+    $("mprice").textContent = fmt2(S.m) + "x";
+    const tb = $("turbo"); tb.textContent = S.turbo > 0 ? `Turbo açık · ${S.turbo} sn` : "Turbo · 200"; tb.disabled = S.turbo > 0 || S.wallet < 200;
+    const mu = $("mute"); mu.textContent = S.mute ? "Ses: kapalı" : "Ses: açık"; mu.setAttribute("aria-pressed", String(S.mute));
+  }
+  function renderLog() {
+    setHTML("log", S.log.length ? S.log.slice(0, 40).map(e => `<li><time>${String(Math.floor(e.t / 60)).padStart(2, "0")}:${String(e.t % 60).padStart(2, "0")}</time><span class="${e.tone || ""}">${e.msg}</span></li>`).join("") : `<li><time></time><span class="note">Henüz olay yok. Satış Ofisi'nden ilk parseli al.</span></li>`);
+  }
+  function renderQuests() {
+    setHTML("quests", QUESTS.map(q => { const d = !!S.quests[q.id]; return `<li class="${d ? "done" : ""}"><span class="chk">${d ? "✓" : ""}</span><span>${q.t}</span><em>+${q.r}</em></li>`; }).join(""));
+  }
+  function line(c, data, color, base) {
+    const g = c.getContext("2d"), w = c.width, h = c.height; g.clearRect(0, 0, w, h);
+    if (data.length < 2) return;
+    let lo = Math.min(...data), hi = Math.max(...data); if (hi - lo < 1e-6) { hi += 1; lo -= 1; }
+    const pad = h * 0.12, X = i => i / (data.length - 1) * (w - 4) + 2, Y = v => h - pad - (v - lo) / (hi - lo) * (h - 2 * pad);
+    if (base !== undefined && base > lo && base < hi) { g.strokeStyle = "#2a382f"; g.setLineDash([6, 6]); g.lineWidth = 2; g.beginPath(); g.moveTo(0, Y(base)); g.lineTo(w, Y(base)); g.stroke(); g.setLineDash([]); }
+    g.strokeStyle = color; g.lineWidth = 3; g.lineJoin = "round"; g.beginPath(); data.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v))); g.stroke();
+    g.fillStyle = color; g.beginPath(); g.arc(X(data.length - 1), Y(data[data.length - 1]), 5, 0, 7); g.fill();
+  }
+  function refresh(full) {
+    if ($("adslot")) $("adslot").hidden = !!(S.shop && S.shop.noAds);
+    renderStats(); renderPanel(); renderLog(); renderQuests();
+    line($("spark"), S.mh, "#f2b441", 1); line($("nw"), S.nwh, "#5fd3b0", START);
+    if (!$("office").hidden && full) renderOffice();
+  }
+
+  /* ---------- Satış Ofisi ---------- */
+  function openOffice() { $("office").hidden = false; renderOffice(); $("oclose").focus(); }
+  function closeOffice() { $("office").hidden = true; cv.focus({ preventScroll: true }); }
+  function renderOffice() {
+    $("obal").textContent = `Bakiye ${fmt(S.wallet)} puan · Tarama bedeli parsel fiyatının %6'sı`;
+    const left = Math.max(0, S.offerUntil - S.t), mm = String(Math.floor(left / 60)).padStart(2, "0"), ss = String(left % 60).padStart(2, "0");
+    const deals = S.offers.filter(o => S.t < S.offerUntil && !S.parcels[o.id].owner && !depleted(S.parcels[o.id]));
+    const rowHtml = p => { const o = offerOf(p), price = priceOf(p);
+      return `<div class="row"><span class="sw" style="background:${TCOL[p.t]}"></span>
+        <div><b>Parsel ${p.x + 1}-${p.y + 1}</b> · ${TERRAIN[p.t].name}<br><span class="note">${p.scanned ? `<span class="dot ${p.grade}"></span>${GN[p.grade]}` : "Zenginlik bilinmiyor"}</span></div>
+        <div style="font-family:var(--font-mono)">${o ? `<s>${fmt(p.price)}</s>` : ""}<b>${fmt(price)}</b>${o ? ` <span class="pos">−%${Math.round(o.disc * 100)}</span>` : ""}</div>
+        <div class="acts"><button class="btn sm" data-oact="show" data-id="${p.id}">Haritada</button>
+        <button class="btn sm scan" data-oact="scan" data-id="${p.id}" ${p.scanned || S.wallet < scanFee(p) ? "disabled" : ""}>${p.scanned ? "Tarandı" : `Tara ${fmt(scanFee(p))}`}</button>
+        <button class="btn sm primary" data-oact="buy" data-id="${p.id}" ${S.wallet < price ? "disabled" : ""}>Satın al</button></div></div>`; };
+    let list = S.parcels.filter(p => !p.owner && !depleted(p) && (officeFilter === "all" || p.t === officeFilter));
+    list.sort(officeSort === "price" ? (a, b) => priceOf(a) - priceOf(b) : officeSort === "priceDesc" ? (a, b) => priceOf(b) - priceOf(a) : (a, b) => a.id - b.id);
+    const chips = [["all", "Hepsi"], ...Object.entries(TERRAIN).map(([k, v]) => [k, v.name])].map(([k, n]) => `<button data-ofilter="${k}" aria-pressed="${officeFilter === k}">${n}</button>`).join("");
+    const odds = Object.values(TERRAIN).map(T => `<tr><td>${T.name}</td><td>${fmt(T.price[0])}–${fmt(T.price[1])}</td>${T.odds.map(v => `<td>%${Math.round(v * 100)}</td>`).join("")}</tr>`).join("");
+    const html = `<section><h3 class="lbl">Günün fırsatları · yenilenmesine ${mm}:${ss}</h3>
+        ${deals.length ? `<div class="deals">${deals.map(o => { const p = S.parcels[o.id]; return `<div class="deal"><span class="tag">−%${Math.round(o.disc * 100)}</span><div><b>Parsel ${p.x + 1}-${p.y + 1}</b> · ${TERRAIN[p.t].name}</div><div style="font-family:var(--font-mono)"><s class="note">${fmt(p.price)}</s> <b>${fmt(priceOf(p))}</b></div><div class="acts" style="display:flex;gap:6px"><button class="btn sm primary" data-oact="buy" data-id="${p.id}" ${S.wallet < priceOf(p) ? "disabled" : ""}>Satın al</button><button class="btn sm" data-oact="show" data-id="${p.id}">Haritada</button></div></div>`; }).join("")}</div>` : `<p class="note">Şu an fırsat yok, yenileniyor.</p>`}
+        <p class="note" style="margin-top:6px">İndirimler zenginlikten bağımsız, rastgele seçilir.</p></section>
+      <section><h3 class="lbl">Tüm ilanlar (${list.length})</h3>
+        <div class="filters"><span class="chips">${chips}</span>
+        <label class="note" for="osort">Sırala</label><select id="osort"><option value="price"${officeSort === "price" ? " selected" : ""}>Fiyat: artan</option><option value="priceDesc"${officeSort === "priceDesc" ? " selected" : ""}>Fiyat: azalan</option><option value="pos"${officeSort === "pos" ? " selected" : ""}>Konum</option></select></div>
+        <div class="rows" style="margin-top:8px">${list.map(rowHtml).join("") || `<p class="note">Bu filtrede ilan yok.</p>`}</div></section>
+      <section><h3 class="lbl">Zenginlik olasılıkları</h3><div class="scroll-x"><table><thead><tr><th>Bölge</th><th>Fiyat</th><th>Kuru</th><th>Orta</th><th>Zengin</th><th>Jackpot</th></tr></thead><tbody>${odds}</tbody></table></div>
+        <p class="note" style="margin-top:6px">Kuru parsel alış bedelini çıkarmaz. Orta parsel yaklaşık başa baş gider, Zengin ve Jackpot kazandırır. Satış değeri: %35 liste fiyatı + kalan cevherin %60'ı.</p></section>`;
+    if (cache.obody !== html) { const sc = $("obody").scrollTop; cache.obody = html; $("obody").innerHTML = html; $("obody").scrollTop = sc; }
+  }
+  $("obody").addEventListener("click", e => {
+    const f = e.target.closest("[data-ofilter]"); if (f) { officeFilter = f.dataset.ofilter; renderOffice(); return; }
+    const b = e.target.closest("[data-oact]"); if (!b) return;
+    const p = S.parcels[+b.dataset.id], a = b.dataset.oact;
+    if (a === "buy") { if (buy(p)) { toast(`Parsel ${p.x + 1}-${p.y + 1} senin.`); selected = p.id; } }
+    else if (a === "scan") scan(p);
+    else if (a === "show") { selected = p.id; closeOffice(); refresh(true); }
+  });
+  $("obody").addEventListener("change", e => { if (e.target.id === "osort") { officeSort = e.target.value; renderOffice(); } });
+  $("oclose").addEventListener("click", closeOffice);
+  $("office").addEventListener("click", e => { if (e.target === $("office")) closeOffice(); });
+  window.addEventListener("keydown", e => { if (e.key === "Escape" && !$("office").hidden) closeOffice(); });
+
+  /* ---------- Derin Kazı penceresi ---------- */
+  const DG = { multi: false, room: null, peers: [], k: null, round: null, pres: "", presAt: 0, open: false, phase: "idle", mult: 1, crash: 1, t0: 0, endAt: 0, nextAt: 0, bets: [null, null, null], pid: null, bots: [], botsDirty: true,
+    msg: "", msgUntil: 0, lastCount: 0, running: false, last: 0, parts: [], rubble: [], clouds: [], coins: [], flash: 0, auto: [null, { bet: false, cash: false, v: 2 }, { bet: false, cash: false, v: 2 }], mine: [null, null, null] };
+  const dgq = id => document.getElementById(id), dgc = dgq("dg-cv"), dgx = dgc.getContext("2d");
+  const dgCache = {};
+  function dput(id, v) { if (dgCache[id] !== v) { dgCache[id] = v; dgq(id).textContent = v; } }
+  function dgHTMLset(id, h) { if (dgCache[id] !== h) { dgCache[id] = h; dgq(id).innerHTML = h; } }
+  const dgLocked = id => DG.bets.some(b => b && b.pid === id);
+  const dgParcel = () => { const p = DG.pid === null ? null : S.parcels[DG.pid]; return p && p.owner && !depleted(p) ? p : null; };
+  const DG_MIN = 50, DG_MAX = 2500;
+  function dgCardHTML(i) {
+    return `<div class="dg-card"><div class="dg-row"><button data-dadj="${i}:-50" aria-label="Azalt">−</button><input type="number" id="dgamt${i}" value="100" min="${DG_MIN}" max="${DG_MAX}" step="50" inputmode="numeric" aria-label="Kazı ${i}"><button data-dadj="${i}:50" aria-label="Artır">+</button></div>` +
+      `<div class="dg-quick">${[50, 100, 250, 500].map(v => `<button data-dq="${i}:${v}">${v}</button>`).join("")}</div>` +
+      `<button class="dg-main" id="dgbb${i}"></button><button class="dg-cash" id="dgcb${i}" data-dcash="${i}"></button>` +
+      `<div class="dg-foot"><div class="dg-tg"><button class="dg-tl" data-dtog="${i}:bet" id="dgab${i}" aria-pressed="false">Oto Kazı <span class="dg-sw"></span></button>` +
+      `<button class="dg-tl" data-dtog="${i}:cash" id="dgac${i}" aria-pressed="false">Oto Çekilme <span class="dg-sw"></span></button></div>` +
+      `<input type="number" class="dg-av" id="dgav${i}" value="2.00" step="0.10" min="1.01" aria-label="Otomatik çekilme çarpanı ${i}"></div></div>`;
+  }
+  dgq("dg-bets").innerHTML = dgCardHTML(1) + dgCardHTML(2);
+
+  function dgMsg(t) { DG.msg = t; DG.msgUntil = Date.now() + 2500; }
+  function dgSetAmt(i, v) { dgq("dgamt" + i).value = Math.min(DG_MAX, Math.max(DG_MIN, Math.floor(v) || DG_MIN)); }
+  function dgFill() {
+    const own = S.parcels.filter(p => p.owner && !depleted(p));
+    if (DG.pid === null || !dgParcel()) DG.pid = own.length ? own[0].id : null;
+    const html = own.length ? own.map(p => `<option value="${p.id}"${p.id === DG.pid ? " selected" : ""}>Parsel ${p.x + 1}-${p.y + 1} · ${TERRAIN[p.t].name} · ${fmt(p.left)}</option>`).join("") : `<option value="">Parselin yok</option>`;
+    dgHTMLset("dg-parcel", html);
+    dgq("dg-parcel").disabled = DG.bets.some(Boolean) || !own.length;
+    const p = dgParcel(); dput("dg-res", p ? `Rezerv ${fmt(p.left)} puan` : "Rezerv yok");
+  }
+  function dgPlace(i) {
+    if (DG.bets[i]) return false;
+    const p = dgParcel(); if (!p) { dgMsg("Önce parsel satın al ve seç"); return false; }
+    const amt = Math.floor(+dgq("dgamt" + i).value);
+    if (!(amt >= DG_MIN)) { dgMsg("Minimum kazı: " + DG_MIN + " puan"); return false; }
+    if (amt > DG_MAX) { dgMsg("Maksimum kazı: " + fmt(DG_MAX) + " puan"); return false; }
+    if (amt > Math.floor(p.left)) { dgMsg("Parselin rezervi yetersiz"); return false; }
+    p.left -= amt; DG.bets[i] = { amt, pid: p.id, live: false };
+    DG.mine[i] = { amt, st: "play", at: 0, win: 0 }; DG.botsDirty = true; sfx.up(); return true;
+  }
+  function dgCancel(i) {
+    const b = DG.bets[i]; if (!b || b.live) return;
+    const p = S.parcels[b.pid]; p.left = Math.min(p.v0, p.left + b.amt); DG.bets[i] = null; DG.mine[i] = null; DG.botsDirty = true;
+  }
+  function dgCash(i, at) {
+    const b = DG.bets[i]; if (!b || !b.live || DG.phase !== "fly") return;
+    const v = at || DG.mult, win = Math.floor(b.amt * v), p = S.parcels[b.pid];
+    S.wallet += win; if (p.owner) p.earned += win; DG.bets[i] = null;
+    for (let k = 0; k < Math.min(60, 18 + Math.floor(v * 4)); k++) DG.coins.push({ x: 480, y: 235, vx: (Math.random() - 0.5) * 7, vy: -4 - Math.random() * 7, rot: Math.random() * 6, life: 1 });
+    floats.push({ id: b.pid, text: "+" + fmt(win - b.amt), age: 0 });
+    const gr = dgq("dg-graph"), bn = document.createElement("div"); bn.className = "dg-win"; bn.innerHTML = `${v >= 10 ? "MEGA " : ""}+${fmt(win - b.amt)}<small>${fmt(win)} PUAN BAKİYENE EKLENDİ</small>`; gr.appendChild(bn); setTimeout(() => bn.remove(), 1900);
+    gr.classList.remove("win"); void gr.offsetWidth; gr.classList.add("win");
+    if (v >= 5) { [0, 0.09, 0.18, 0.27].forEach((dl, k) => beep(523 * Math.pow(1.26, k), 0.18, "triangle", 0.05, dl)); }
+    S.digStats.wins++; S.digStats.net += win - b.amt; S.digStats.best = Math.max(S.digStats.best, v);
+    if (DG.mine[i]) Object.assign(DG.mine[i], { st: "won", at: v, win }); DG.botsDirty = true;
+    const d = document.createElement("div"); d.className = "dg-pop"; d.style.top = 62 + Math.random() * 8 + "%"; d.textContent = `+${fmt(win - b.amt)} · ${v.toFixed(2)}x`; dgq("dg-graph").appendChild(d); setTimeout(() => d.remove(), 1500);
+    dgMsg(`Çektin: ${sgn(win - b.amt)} puan (${v.toFixed(2)}x), bakiyene eklendi`); sfx.coin(); renderStats(); log(`Derin Kazı: ${v.toFixed(2)}x çekildi, ${sgn(win - b.amt)} puan.`, "pos"); checkQuests();
+  }
+  const dgGen = () => clamp(Math.floor(97 / (1 - Math.random())) / 100, 1, 200);
+  function dgBotsNew() {
+    const pool = [50, 100, 100, 250, 250, 500, 500, 750, 1000, 1500, 2500], L = "abcdefghjkmnprstuvyz", list = [];
+    for (let k = 0; k < 10; k++) list.push({ name: L[Math.floor(Math.random() * L.length)] + "***" + Math.floor(Math.random() * 10), amt: pool[Math.floor(Math.random() * pool.length)],
+      target: Math.floor(Math.max(1.1, 0.97 / (1 - Math.random() * 0.985)) * 100) / 100, st: "play", at: 0, win: 0 });
+    list.sort((a, b) => b.amt - a.amt); DG.bots = list; DG.botsDirty = true;
+  }
+  function dgCountdown(late) {
+    DG.phase = "count"; DG.endAt = DG.multi && DG.round ? DG.round.flyStart : Date.now() + 5000; DG.lastCount = 0; DG.mult = 1; DG.rubble = []; DG.parts = [];
+    [1, 2].forEach(i => { if (!DG.bets[i]) DG.mine[i] = null; });
+    if (DG.multi && DG.round) dgBotsSeed(DG.round.k); else dgBotsNew();
+    if (!late) [1, 2].forEach(i => { if (!DG.bets[i] && DG.auto[i].bet && !dgPlace(i)) { DG.auto[i].bet = false; dgq("dgab" + i).setAttribute("aria-pressed", "false"); } });
+    dgq("dg-count").style.display = "flex"; dgq("dg-mult").classList.remove("crashed");
+  }
+  function dgFly() {
+    DG.phase = "fly"; DG.crash = DG.multi && DG.round ? DG.round.crash : dgGen(); DG.t0 = DG.multi && DG.round ? DG.round.flyStart : Date.now(); dgq("dg-count").style.display = "none";
+    [1, 2].forEach(i => { if (DG.bets[i]) { DG.bets[i].live = true; S.digStats.runs++; } });
+    beep(180, 0.4, "sawtooth", 0.04); beep(520, 0.2, "triangle", 0.04, 0.1);
+  }
+  function dgCrash() {
+    DG.phase = "crash"; DG.mult = DG.crash; DG.nextAt = DG.multi && DG.round ? DG.round.nextC : Date.now() + 3200; DG.flash = 1;
+    DG.bots.forEach(b => { if (b.st === "play") b.st = "lost"; }); DG.botsDirty = true;
+    let lost = 0;
+    [1, 2].forEach(i => { const b = DG.bets[i]; if (b && b.live) { lost += b.amt; S.digStats.net -= b.amt; DG.bets[i] = null; if (DG.mine[i]) DG.mine[i].st = "lost"; } });
+    if (lost) { dgMsg(`Göçük! Kaybettin: −${fmt(lost)} puan`); log(`Derin Kazı: göçük ${DG.crash.toFixed(2)}x, ${fmt(lost)} puanlık rezerv gitti.`, "neg"); }
+    DG.hist = S.digHist; S.digHist.unshift(DG.crash); if (S.digHist.length > 25) S.digHist.pop();
+    for (let k = 0; k < 40; k++) DG.rubble.push({ x: 480 + (Math.random() - 0.5) * 150, y: -20 - Math.random() * 120, vy: 0, r: 5 + Math.random() * 9, rot: Math.random() * 6, done: false });
+    for (let k = 0; k < 8; k++) DG.clouds.push({ x: 480 + (Math.random() - 0.5) * 60, y: 250, r: 10, vx: (Math.random() - 0.5) * 60, life: 1 });
+    sfx.sell(); beep(90, 0.5, "sawtooth", 0.07);
+    const g = dgq("dg-graph"); g.classList.remove("shake"); void g.offsetWidth; g.classList.add("shake");
+    dgq("dg-mult").classList.add("crashed"); S.digHist = S.digHist; refresh(true);
+  }
+  /* ---------- Çok oyunculu: ortak saat ve canlı varlık ---------- */
+  const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const EP = 600000, E0 = Date.UTC(2026, 0, 1), hash = (a, b) => { let h = 2166136261; for (const v of [a, b, 7]) { h ^= v | 0; h = Math.imul(h, 16777619); } return h >>> 0; };
+  function dgSched(now) {
+    const epoch = Math.floor((now - E0) / EP), t0 = E0 + epoch * EP; let t = t0;
+    for (let k = 0; k < 400; k++) {
+      const u = mulberry(hash(epoch, k))(), crash = clamp(Math.floor(97 / (1 - u)) / 100, 1, 50);
+      const flyStart = t + 5000, crashAt = flyStart + Math.log(crash) / DG_G * 1000, nextC = crashAt + 3200;
+      if (nextC > t0 + EP) return { wait: true, k: "w" + epoch, nextC: t0 + EP };
+      if (now < nextC) return { k: epoch * 1000 + k, cStart: t, flyStart, crash, crashAt, nextC };
+      t = nextC;
+    }
+    return { wait: true, k: "w" + epoch, nextC: t0 + EP };
+  }
+  const DG_G = 0.09;
+  function dgBotsSeed(k) {
+    const r = mulberry(hash(typeof k === "number" ? k : 5, 99)), pool = [50, 100, 100, 250, 250, 500, 500, 750, 1000, 1500], L = "abcdefghjkmnprstuvyz", list = [];
+    for (let i = 0; i < 8; i++) list.push({ bot: true, name: L[Math.floor(r() * L.length)] + "***" + Math.floor(r() * 10), amt: pool[Math.floor(r() * pool.length)], target: Math.floor(Math.max(1.1, 0.97 / (1 - r() * 0.985)) * 100) / 100, st: "play", at: 0, win: 0 });
+    list.sort((a, b) => b.amt - a.amt); DG.bots = list; DG.botsDirty = true;
+  }
+  function dgSync(now) {
+    const r = dgSched(now);
+    if (r.wait) { DG.waitLeft = Math.ceil((r.nextC - now) / 1000); if (DG.k !== r.k) { DG.k = r.k; DG.round = null; if (DG.phase === "fly") dgCrash(); DG.phase = "wait"; DG.mult = 1; dgq("dg-count").style.display = "none"; dgq("dg-mult").classList.remove("crashed"); } return; }
+    if (r.k !== DG.k) {
+      if (DG.phase === "fly") dgCrash();
+      DG.k = r.k; DG.round = r;
+      const late = now >= r.flyStart;
+      dgCountdown(late);
+      if (late) { dgFly(); if (now >= r.crashAt) { DG.phase = "crash"; DG.mult = DG.crash; DG.nextAt = r.nextC; dgq("dg-mult").classList.add("crashed"); } }
+    }
+  }
+  function dgPresence() {
+    const nick = (dgq("dg-nick").value || "Madenci").slice(0, 14);
+    const o = { n: nick, nw: Math.round(netWorth()), dn: Math.round(S.digStats.net), k: DG.multi ? DG.k : null, b: [1, 2].map(i => { const m = DG.mine[i]; return m ? { a: m.amt, s: m.st, x: +(m.at || 0).toFixed(2), w: m.win || 0 } : null; }) };
+    const j = JSON.stringify(o); if (j === DG.pres) return; DG.pres = j; DG.room.presence(o).catch(() => {});
+  }
+  function dgPeerRows() {
+    const rows = [];
+    for (const p of DG.peers) { if (p.isMe || p.kind !== "viewer") continue; const pr = p.presence || {}; if (pr.k !== DG.k || !Array.isArray(pr.b)) continue;
+      pr.b.slice(0, 2).forEach((b, i) => { if (!b || typeof b.a !== "number") return; rows.push({ name: String(pr.n || "Madenci").slice(0, 14) + (pr.b.filter(Boolean).length > 1 ? " #" + (i + 1) : ""), amt: clamp(Math.floor(b.a), 0, 1e6), st: ["play", "won", "lost"].includes(b.s) ? b.s : "play", at: clamp(+b.x || 0, 0, 1000), win: clamp(Math.floor(+b.w || 0), 0, 1e9) }); }); }
+    return rows.sort((a, b) => b.amt - a.amt);
+  }
+  function dgRenderPeers() {
+    const wrap = dgq("dg-lbwrap"); if (!DG.room) { wrap.hidden = true; return; }
+    const me = { me: true, n: (dgq("dg-nick").value || "Madenci").slice(0, 14), nw: Math.round(netWorth()), dn: Math.round(S.digStats.net) };
+    const others = DG.peers.filter(p => !p.isMe && p.kind === "viewer" && p.presence && p.presence.n).map(p => ({ n: String(p.presence.n).slice(0, 14), nw: clamp(+p.presence.nw || 0, -1e9, 1e12), dn: clamp(+p.presence.dn || 0, -1e9, 1e12), g: p.guest }));
+    const all = [me, ...others].sort((a, b) => b.nw - a.nw);
+    wrap.hidden = !DG.multi;
+    dgHTMLset("dg-lb", all.map((o, i) => `<div class="dg-plrow ${o.me ? "me" : ""}" style="grid-template-columns:28px 1.4fr 1fr 1fr"><span>${i + 1}</span><span style="text-align:left">${esc(o.n)}${o.me ? " (sen)" : ""}${o.g ? " · misafir" : ""}</span><span>${fmt(o.nw)}</span><span>${sgn(o.dn)}</span></div>`).join("") || "");
+    dput("dg-online", DG.multi ? `${all.length} çevrimiçi` : "Tek kişilik");
+  }
+  function dgFrame() {
+    const now = Date.now(), gap = now - DG.last; DG.last = now;
+    if (gap > 1500 && !DG.multi) { DG.t0 += gap; DG.endAt += gap; DG.nextAt += gap; }
+    if (DG.multi) dgSync(now);
+    if (DG.phase === "count") {
+      const left = Math.ceil((DG.endAt - now) / 1000);
+      if (left <= 0) dgFly(); else if (left !== DG.lastCount) { DG.lastCount = left; dput("dg-cnum", String(left)); beep(880, 0.1, "triangle", 0.03); }
+    } else if (DG.phase === "fly") {
+      const m = Math.exp(0.09 * (now - DG.t0) / 1000);
+      [1, 2].forEach(i => { const b = DG.bets[i]; if (b && b.live && DG.auto[i].cash && DG.auto[i].v <= m && DG.auto[i].v < DG.crash) dgCash(i, DG.auto[i].v); });
+      DG.bots.forEach(b => { if (b.st === "play" && b.target <= m && b.target < DG.crash) { b.st = "won"; b.at = b.target; b.win = Math.floor(b.amt * b.target); DG.botsDirty = true; } });
+      if (m >= DG.crash) dgCrash(); else DG.mult = m;
+    } else if (DG.phase === "crash" && now >= DG.nextAt && !DG.multi) {
+      if (DG.open) dgCountdown(); else DG.phase = "idle";
+    }
+    if (DG.open) { dgRender(now); dgDraw(now / 1000); }
+    if (DG.room && now - DG.presAt > 600) { DG.presAt = now; dgPresence(); }
+    if (DG.open || DG.phase === "fly") requestAnimationFrame(dgFrame); else DG.running = false;
+  }
+  function dgStart() { if (DG.running) return; DG.running = true; DG.last = Date.now(); requestAnimationFrame(dgFrame); }
+  function dgRender(now) {
+    const m = DG.mult.toFixed(2) + "x", depth = Math.floor((Math.log(DG.mult) * 300 + 60) / 3);
+    dgq("dg-mult").firstChild.nodeValue !== m && (dgq("dg-mult").firstChild.nodeValue = m);
+    dput("dg-depth", DG.phase === "count" ? "Kazıya hazır" : depth + " m derinlik");
+    dgFill(); dput("dg-bal", "Bakiye " + fmt(S.wallet));
+    const me = dgq("dg-mult"), fl = DG.phase === "fly"; me.classList.toggle("t2", fl && DG.mult >= 2 && DG.mult < 5); me.classList.toggle("t5", fl && DG.mult >= 5 && DG.mult < 10); me.classList.toggle("t10", fl && DG.mult >= 10);
+    const s = S.digStats;
+    dgHTMLset("dg-stats", `<div><small>Kazı</small><b>${fmt(s.runs)}</b></div><div><small>Kazanılan</small><b>${fmt(s.wins)}</b></div><div><small>Net</small><b class="${s.net > 0 ? "pos" : s.net < 0 ? "neg" : ""}">${sgn(s.net)}</b></div><div><small>En iyi çekim</small><b>${s.best ? s.best.toFixed(2) + "x" : "—"}</b></div>`);
+    dgHTMLset("dg-hist", S.digHist.map(v => `<span class="badge ${v >= 10 ? "gold" : v >= 3 ? "high" : v >= 2 ? "mid" : "low"}">${v.toFixed(2)}x</span>`).join(""));
+    let st;
+    if (now < DG.msgUntil) st = DG.msg; else if (DG.phase === "count") st = "Kazılarını başlat, " + DG.lastCount + " sn"; else if (DG.phase === "fly") st = "Matkap iniyor, göçükten önce çek"; else if (DG.phase === "crash") st = "Göçük: " + DG.crash.toFixed(2) + "x, yeni tur birazdan"; else if (DG.phase === "wait") st = "Yeni dizi " + DG.waitLeft + " sn içinde başlıyor"; else st = "Hazırlanıyor";
+    dput("dg-status", st);
+    [1, 2].forEach(i => {
+      const b = DG.bets[i], mb = dgq("dgbb" + i), cb = dgq("dgcb" + i);
+      if (b && b.live) { mb.style.display = "none"; cb.style.display = "flex"; dput("dgcb" + i, `ÇEK (${fmt(Math.floor(b.amt * DG.mult))} PUAN)`); }
+      else { cb.style.display = "none"; mb.style.display = "flex"; mb.className = "dg-main" + (b ? " cancel" : ""); dput("dgbb" + i, b ? `İPTAL ET (${fmt(b.amt)})` : DG.phase === "count" ? "KAZIYI BAŞLAT" : "SONRAKİ TUR İÇİN KAZI"); mb.disabled = !dgParcel() && !b; }
+    });
+    if (DG.botsDirty) {
+      DG.botsDirty = false;
+      const rows = []; [1, 2].forEach(i => { const m2 = DG.mine[i]; if (m2) rows.push({ me: true, name: "Sen #" + i, ...m2 }); });
+      let all;
+      if (DG.multi) { const pr = dgPeerRows(); all = rows.concat(pr, DG.bots.filter(b => b.bot).slice(0, Math.max(0, 8 - rows.length - pr.length))); } else all = rows.concat(DG.bots);
+      let tot = 0, won = 0;
+      dgHTMLset("dg-pl", all.map(b => { tot += b.amt; if (b.st === "won") won += b.win; return `<div class="dg-plrow ${b.me ? "me " : ""}${b.st === "won" ? "w" : b.st === "lost" ? "l" : ""}"><span>${esc(b.name)}${b.bot ? " · bot" : ""}</span><span>${fmt(b.amt)}</span><span>${b.st === "won" ? b.at.toFixed(2) + "x" : "—"}</span><span>${b.st === "won" ? fmt(b.win) : b.st === "lost" ? "—" : ""}</span></div>`; }).join(""));
+      dput("dg-plsum", `${all.length} oyuncu · ${fmt(tot)} kazı · ${fmt(won)} çekildi`);
+    }
+  }
+  /* ---------- Derin Kazı: ayrıntılı sahne ---------- */
+  const dgHex = h => { h = h.replace("#", ""); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
+  const dgShade = (h, a, al) => { const [r, g, b] = dgHex(h); return `rgba(${clamp(Math.round(r * a), 0, 255)},${clamp(Math.round(g * a), 0, 255)},${clamp(Math.round(b * a), 0, 255)},${al == null ? 1 : al})`; };
+  const dgHash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+  const DGB = new Map();
+  function dgCrystal(g, x, y, s, col, rot) {
+    g.save(); g.translate(x, y); g.rotate(rot);
+    g.fillStyle = dgShade(col, 0.85); g.beginPath(); g.moveTo(0, -s * 1.7); g.lineTo(s * 0.62, -s * 0.55); g.lineTo(s * 0.5, s * 0.9); g.lineTo(-s * 0.5, s * 0.9); g.lineTo(-s * 0.62, -s * 0.55); g.closePath(); g.fill();
+    g.fillStyle = dgShade(col, 1.3, 0.92); g.beginPath(); g.moveTo(0, -s * 1.7); g.lineTo(-s * 0.62, -s * 0.55); g.lineTo(-s * 0.5, s * 0.9); g.lineTo(-s * 0.06, s * 0.9); g.lineTo(-s * 0.06, -s * 0.5); g.closePath(); g.fill();
+    g.fillStyle = dgShade(col, 0.5, 0.8); g.beginPath(); g.moveTo(0, -s * 1.7); g.lineTo(s * 0.62, -s * 0.55); g.lineTo(s * 0.5, s * 0.9); g.lineTo(s * 0.2, s * 0.9); g.lineTo(s * 0.2, -s * 0.5); g.closePath(); g.fill();
+    g.strokeStyle = "rgba(255,255,255,.6)"; g.lineWidth = 0.7; g.beginPath(); g.moveTo(-s * 0.32, -s * 0.95); g.lineTo(-s * 0.32, s * 0.4); g.stroke();
+    g.strokeStyle = "rgba(0,0,0,.35)"; g.lineWidth = 0.6; g.beginPath(); g.moveTo(-s * 0.5, s * 0.9); g.lineTo(s * 0.5, s * 0.9); g.stroke();
+    g.restore();
+  }
+  function dgNugget(g, x, y, s, rng) {
+    const pts = [], n = 8; for (let i = 0; i < n; i++) { const a = i / n * 6.283, r = s * (0.7 + rng() * 0.5); pts.push([x + Math.cos(a) * r, y + Math.sin(a) * r * 0.8]); }
+    const path = k => { g.beginPath(); pts.forEach((p, i) => { const px = x + (p[0] - x) * k, py = y + (p[1] - y) * k; i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.closePath(); };
+    path(1); g.fillStyle = "#6b4300"; g.fill();
+    const gr = g.createRadialGradient(x - s * 0.35, y - s * 0.4, 0.5, x, y, s * 1.3); gr.addColorStop(0, "#fff4b8"); gr.addColorStop(0.45, "#f2b441"); gr.addColorStop(1, "#9a6812");
+    path(0.88); g.fillStyle = gr; g.fill();
+  }
+  function dgBand(bi) {
+    const sk = skin("shaft"), key = sk + ":" + bi; let e = DGB.get(key); if (e) return e;
+    if (DGB.size > 20) DGB.delete(DGB.keys().next().value);
+    const BW = 960, BH = 92, Q = 2, cv = document.createElement("canvas"); cv.width = BW * Q; cv.height = BH * Q;
+    const g = cv.getContext("2d"); g.scale(Q, Q);
+    const rng = mulberry(bi * 131 + 7 + sk.length * 977), base = strata()[bi % 6], col = veinCol(bi), gems = [];
+    let gr = g.createLinearGradient(0, 0, 0, BH); gr.addColorStop(0, dgShade(base, 1.18)); gr.addColorStop(0.35, dgShade(base, 1)); gr.addColorStop(1, dgShade(base, 0.8)); g.fillStyle = gr; g.fillRect(0, 0, BW, BH);
+    for (let k = 0; k < 34; k++) { g.fillStyle = rng() < 0.5 ? "rgba(255,235,200,.045)" : "rgba(0,0,0,.09)"; g.beginPath(); g.ellipse(rng() * BW, rng() * BH, 24 + rng() * 80, 4 + rng() * 14, (rng() - 0.5) * 0.2, 0, 7); g.fill(); }
+    for (let k = 0; k < 6; k++) { const y0 = 8 + rng() * 76, amp = 1 + rng() * 3, ph = rng() * 6; g.strokeStyle = rng() < 0.6 ? "rgba(0,0,0,.16)" : "rgba(255,240,215,.08)"; g.lineWidth = 0.8 + rng() * 1.4; g.beginPath(); for (let x = 0; x <= BW; x += 16) { const y = y0 + Math.sin(x * 0.011 + ph) * amp + Math.sin(x * 0.037 + ph * 2) * amp * 0.4; x ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); }
+    for (let k = 0; k < 900; k++) { g.fillStyle = rng() < 0.5 ? `rgba(0,0,0,${0.05 + rng() * 0.12})` : `rgba(255,240,220,${0.03 + rng() * 0.08})`; g.fillRect(rng() * BW, rng() * BH, 1 + (rng() < 0.2 ? 1 : 0), 1); }
+    for (let k = 0; k < 16; k++) {
+      const x = rng() * BW, y = 6 + rng() * 78, r = 3 + rng() * 9, n = 6 + Math.floor(rng() * 3), pts = [];
+      for (let i = 0; i < n; i++) { const a = i / n * 6.283 + rng() * 0.4, rr = r * (0.7 + rng() * 0.5); pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.72]); }
+      const path = () => { g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); };
+      g.save(); g.translate(1.3, 1.8); path(); g.fillStyle = "rgba(0,0,0,.32)"; g.fill(); g.restore();
+      const pg = g.createRadialGradient(x - r * 0.3, y - r * 0.4, 1, x, y, r * 1.2); pg.addColorStop(0, dgShade(base, 1.45 + rng() * 0.3)); pg.addColorStop(1, dgShade(base, 0.8));
+      path(); g.fillStyle = pg; g.fill(); g.strokeStyle = "rgba(0,0,0,.25)"; g.lineWidth = 0.6; g.stroke();
+      g.strokeStyle = "rgba(255,255,255,.14)"; g.lineWidth = 0.8; g.beginPath(); g.arc(x, y, r * 0.8, 3.5, 4.8); g.stroke();
+    }
+    for (let k = 0; k < 3; k++) {
+      let x = rng() * BW, y = 6 + rng() * 40; const seg = []; for (let i = 0; i < 8; i++) { seg.push([x, y]); x += (rng() - 0.35) * 26; y += 4 + rng() * 9; }
+      g.strokeStyle = "rgba(0,0,0,.55)"; g.lineWidth = 1.2; g.beginPath(); seg.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke();
+      g.strokeStyle = "rgba(255,240,215,.12)"; g.lineWidth = 0.6; g.beginPath(); seg.forEach((p, i) => i ? g.lineTo(p[0] + 1, p[1] + 1) : g.moveTo(p[0] + 1, p[1] + 1)); g.stroke();
+    }
+    if (rng() < 0.32) {
+      const fx = 60 + rng() * 840, fy = 28 + rng() * 34, fr = 9 + rng() * 6; g.strokeStyle = dgShade(base, 1.6, 0.5); g.lineWidth = 1.4;
+      if (rng() < 0.6) { g.beginPath(); for (let a = 0; a < 12.5; a += 0.2) { const rr = fr * (a / 12.5); a ? g.lineTo(fx + Math.cos(a) * rr, fy + Math.sin(a) * rr) : g.moveTo(fx, fy); } g.stroke(); g.lineWidth = 0.7; for (let a = 0; a < 6.283; a += 0.5) { g.beginPath(); g.moveTo(fx + Math.cos(a) * fr * 0.55, fy + Math.sin(a) * fr * 0.55); g.lineTo(fx + Math.cos(a) * fr, fy + Math.sin(a) * fr); g.stroke(); } }
+      else { g.lineWidth = 3; g.lineCap = "round"; g.beginPath(); g.moveTo(fx - 16, fy + 3); g.lineTo(fx + 16, fy - 3); g.stroke(); g.fillStyle = dgShade(base, 1.6, 0.5); [[-16, 3], [16, -3]].forEach(p => { g.beginPath(); g.arc(fx + p[0], fy + p[1], 3.2, 0, 7); g.fill(); }); g.lineCap = "butt"; }
+    }
+    if (rng() < 0.24) {
+      const left = rng() < 0.5, ex = left ? 40 + rng() * 240 : 680 + rng() * 240, ey = 36 + rng() * 20, rx = 26 + rng() * 26, ry = 12 + rng() * 8;
+      const cg = g.createRadialGradient(ex, ey, 2, ex, ey, rx); cg.addColorStop(0, "rgba(4,2,2,.97)"); cg.addColorStop(1, "rgba(22,13,9,.92)");
+      g.fillStyle = cg; g.beginPath(); g.ellipse(ex, ey, rx, ry, 0, 0, 7); g.fill(); g.strokeStyle = "rgba(255,230,190,.16)"; g.lineWidth = 1.2; g.stroke();
+      g.fillStyle = dgShade(base, 0.95); for (let k = 0; k < 7; k++) { const sx = ex - rx * 0.8 + k * (rx * 1.6 / 6), sl = 4 + rng() * 9; g.beginPath(); g.moveTo(sx - 2.4, ey - ry * Math.sqrt(Math.max(0, 1 - Math.pow((sx - ex) / rx, 2))) + 1); g.lineTo(sx + 2.4, ey - ry * Math.sqrt(Math.max(0, 1 - Math.pow((sx - ex) / rx, 2))) + 1); g.lineTo(sx, ey - ry * Math.sqrt(Math.max(0, 1 - Math.pow((sx - ex) / rx, 2))) + sl); g.closePath(); g.fill(); }
+      for (let k = 0; k < 4; k++) { const cx2 = ex + (rng() - 0.5) * rx * 1.2, cy2 = ey + ry * 0.45, s = 4 + rng() * 5; dgCrystal(g, cx2, cy2, s, col, (rng() - 0.5) * 0.9); gems.push({ x: cx2, y: cy2 - s, s, col }); }
+    }
+    const veins = 1 + Math.floor(rng() * 2);
+    for (let v = 0; v < veins; v++) {
+      const vx = rng() < 0.5 ? 30 + rng() * 330 : 600 + rng() * 330, vy = 18 + rng() * 52;
+      g.strokeStyle = dgShade(col, 0.9, 0.38); g.lineWidth = 1.6; g.beginPath(); for (let i = 0; i <= 8; i++) { const px = vx + i * 9, py = vy + Math.sin(i * 0.9 + v) * 6; i ? g.lineTo(px, py) : g.moveTo(px, py); } g.stroke();
+      const cnt = 4 + Math.floor(rng() * 3);
+      for (let i = 0; i < cnt; i++) {
+        const px = vx + rng() * 76, py = vy + (rng() - 0.5) * 22;
+        if (bi < 4) { const s = 2.4 + rng() * 3; dgNugget(g, px, py, s, rng); gems.push({ x: px, y: py, s, col }); }
+        else { const s = 3 + rng() * 3.4; dgCrystal(g, px, py, s, col, (rng() - 0.5) * 1.3); gems.push({ x: px, y: py - s * 0.5, s, col }); }
+      }
+      for (let i = 0; i < 12; i++) { g.fillStyle = dgShade(col, 1.1, 0.75); g.fillRect(vx + rng() * 80, vy + (rng() - 0.5) * 24, 1.4, 1.4); }
+    }
+    if (rng() < 0.4) { const wx = 20 + rng() * 920, wl = 30 + rng() * 40, wg = g.createLinearGradient(0, 0, 0, wl); wg.addColorStop(0, "rgba(20,40,60,.4)"); wg.addColorStop(1, "rgba(20,40,60,0)"); g.fillStyle = wg; g.fillRect(wx, 0, 2.2, wl); g.fillStyle = "rgba(160,210,255,.14)"; g.fillRect(wx, 0, 0.8, wl * 0.7); }
+    const tg = g.createLinearGradient(0, 0, 0, 12); tg.addColorStop(0, "rgba(0,0,0,.34)"); tg.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = tg; g.fillRect(0, 0, BW, 12);
+    g.strokeStyle = "rgba(0,0,0,.45)"; g.lineWidth = 2; g.beginPath(); for (let x = 0; x <= BW; x += 20) { const y = 0.8 + Math.sin(x * 0.05 + bi) * 0.8; x ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke();
+    g.strokeStyle = "rgba(255,240,215,.12)"; g.lineWidth = 1; g.beginPath(); g.moveTo(0, 3); g.lineTo(BW, 3); g.stroke();
+    e = { cv, gems }; DGB.set(key, e); return e;
+  }
+  function dgSurface(c, sf, ts, cx, fl) {
+    const W2 = 960, k = Math.min(1, sf / 170);
+    let g = c.createLinearGradient(0, 0, 0, sf); g.addColorStop(0, "#24508c"); g.addColorStop(0.55, "#6eaad6"); g.addColorStop(1, "#f2dcb0"); c.fillStyle = g; c.fillRect(0, 0, W2, sf);
+    const sunY = sf - 150; c.globalCompositeOperation = "lighter"; const sg = c.createRadialGradient(760, sunY, 4, 760, sunY, 120); sg.addColorStop(0, "rgba(255,244,200,.9)"); sg.addColorStop(0.2, "rgba(255,220,150,.35)"); sg.addColorStop(1, "rgba(255,200,120,0)"); c.fillStyle = sg; c.fillRect(640, sunY - 130, 240, 260); c.globalCompositeOperation = "source-over";
+    c.fillStyle = "#fff8dc"; c.beginPath(); c.arc(760, sunY, 14, 0, 7); c.fill();
+    for (let i = 0; i < 4; i++) { const x = (ts * (4 + i * 2) + i * 270) % 1240 - 140, y = sf - 190 + i * 22; c.fillStyle = "rgba(255,255,255,.55)"; [[0, 0, 28], [26, -6, 22], [-24, 4, 20], [48, 4, 17]].forEach(q => { c.beginPath(); c.arc(x + q[0], y + q[1], q[2] * 0.7, 0, 7); c.fill(); }); }
+    const mt = (pts, col, col2, par) => { const mg = c.createLinearGradient(0, sf - 130 * k, 0, sf); mg.addColorStop(0, col); mg.addColorStop(1, col2); c.fillStyle = mg; c.beginPath(); c.moveTo(0, sf); for (const [x, y] of pts) c.lineTo(x, sf - y * k * par); c.lineTo(W2, sf); c.closePath(); c.fill(); };
+    mt([[0, 90], [90, 130], [180, 80], [300, 150], [420, 95], [560, 140], [700, 85], [820, 135], [960, 100]], "#9db8cf", "#7c9db8", 1);
+    c.fillStyle = "rgba(255,255,255,.7)"; [[90, 130], [300, 150], [560, 140], [820, 135]].forEach(p => { const y = sf - p[1] * k; c.beginPath(); c.moveTo(p[0], y); c.lineTo(p[0] - 16, y + 22 * k); c.lineTo(p[0] - 4, y + 16 * k); c.lineTo(p[0] + 4, y + 24 * k); c.lineTo(p[0] + 16, y + 20 * k); c.closePath(); c.fill(); });
+    mt([[0, 40], [140, 90], [300, 50], [480, 100], [640, 56], [820, 92], [960, 60]], "#52756f", "#3d5f55", 1);
+    const tree = (x, s) => { c.fillStyle = "#3b2a1e"; c.fillRect(x - 2 * s, sf - 14 * s, 4 * s, 14 * s); for (let t = 0; t < 3; t++) { const ty = sf - 12 * s - t * 15 * s, w = (22 - t * 5) * s; c.fillStyle = "#24502f"; c.beginPath(); c.moveTo(x, ty - 24 * s); c.lineTo(x - w / 2, ty); c.lineTo(x + w / 2, ty); c.closePath(); c.fill(); c.fillStyle = "#357a45"; c.beginPath(); c.moveTo(x, ty - 24 * s); c.lineTo(x - w / 2, ty); c.lineTo(x - w * 0.05, ty); c.closePath(); c.fill(); } };
+    [[36, 1.3], [92, 1.0], [150, 1.15], [790, 1.1], [850, 1.35], [915, 1]].forEach(t => tree(t[0], t[1]));
+    const gg = c.createLinearGradient(0, sf - 10, 0, sf + 2); gg.addColorStop(0, "#7bb054"); gg.addColorStop(1, "#3c6a2c"); c.fillStyle = gg; c.fillRect(0, sf - 9, W2, 11);
+    c.strokeStyle = "#8fc863"; c.lineWidth = 1; for (let x = 4; x < W2; x += 9) { c.beginPath(); c.moveTo(x, sf - 8); c.lineTo(x + 1.5, sf - 12 - dgHash(x) * 4); c.stroke(); }
+    c.fillStyle = "#6a6258"; c.fillRect(0, sf - 11, 0, 0);
+    c.strokeStyle = "#4a3a2c"; c.lineWidth = 2; c.beginPath(); c.moveTo(cx - 250, sf - 4); c.lineTo(cx + 250, sf - 4); c.stroke(); for (let x = cx - 250; x <= cx + 250; x += 14) c.fillRect(x, sf - 5, 6, 3);
+    c.fillStyle = "#2e251d"; c.fillRect(0, 0, 0, 0);
+    // yığın ve vagon
+    const pile = c.createLinearGradient(0, sf - 34, 0, sf); pile.addColorStop(0, "#6a5c50"); pile.addColorStop(1, "#3d342c"); c.fillStyle = pile; c.beginPath(); c.moveTo(cx - 190, sf - 8); c.lineTo(cx - 152, sf - 36); c.lineTo(cx - 130, sf - 26); c.lineTo(cx - 100, sf - 8); c.closePath(); c.fill();
+    c.fillStyle = "#f2b441"; [[-150, 30], [-138, 22], [-166, 16]].forEach(p => { c.beginPath(); c.arc(cx + p[0], sf - p[1], 2.2 + Math.sin(ts * 3 + p[0]) * 0.4, 0, 7); c.fill(); });
+    c.fillStyle = "#7b3a2c"; c.beginPath(); c.moveTo(cx - 96, sf - 28); c.lineTo(cx - 58, sf - 28); c.lineTo(cx - 64, sf - 10); c.lineTo(cx - 90, sf - 10); c.closePath(); c.fill(); c.fillStyle = "#3a1d17"; c.fillRect(cx - 96, sf - 30, 38, 3);
+    c.fillStyle = "#332a24"; c.beginPath(); c.arc(cx - 85, sf - 7, 4.5, 0, 7); c.arc(cx - 68, sf - 7, 4.5, 0, 7); c.fill();
+    // tabela
+    c.fillStyle = "#3e2d20"; c.fillRect(cx - 232, sf - 48, 4, 42); c.fillRect(cx - 168, sf - 48, 4, 42); const sg2 = c.createLinearGradient(0, sf - 54, 0, sf - 28); sg2.addColorStop(0, "#9b7140"); sg2.addColorStop(1, "#6e4e2b"); c.fillStyle = sg2; c.fillRect(cx - 240, sf - 58, 84, 24); c.strokeStyle = "#3e2d20"; c.lineWidth = 2; c.strokeRect(cx - 240, sf - 58, 84, 24);
+    c.fillStyle = "#fff0cc"; c.font = "700 11px 'IBM Plex Mono', monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("DERİN KAZI", cx - 198, sf - 46); c.textAlign = "left";
+    // makine dairesi
+    const hx0 = cx + 84, hy0 = sf - 56;
+    c.fillStyle = "#9a5a46"; c.fillRect(hx0, hy0, 104, 56); c.strokeStyle = "rgba(0,0,0,.18)"; c.lineWidth = 1; for (let y = hy0 + 7; y < sf; y += 7) { c.beginPath(); c.moveTo(hx0, y); c.lineTo(hx0 + 104, y); c.stroke(); }
+    c.fillStyle = "#33292f"; c.beginPath(); c.moveTo(hx0 - 8, hy0); c.lineTo(hx0 + 52, hy0 - 30); c.lineTo(hx0 + 112, hy0); c.closePath(); c.fill(); c.fillStyle = "rgba(255,255,255,.08)"; c.beginPath(); c.moveTo(hx0 - 8, hy0); c.lineTo(hx0 + 52, hy0 - 30); c.lineTo(hx0 + 52, hy0); c.closePath(); c.fill();
+    c.fillStyle = "#5a3a2c"; c.fillRect(hx0 + 14, hy0 + 22, 20, 34); const wg = c.createLinearGradient(0, hy0 + 14, 0, hy0 + 38); wg.addColorStop(0, "#ffd77a"); wg.addColorStop(1, "#d98a2a"); c.fillStyle = wg; c.fillRect(hx0 + 58, hy0 + 14, 30, 22); c.strokeStyle = "#3a2a22"; c.lineWidth = 2; c.strokeRect(hx0 + 58, hy0 + 14, 30, 22); c.beginPath(); c.moveTo(hx0 + 73, hy0 + 14); c.lineTo(hx0 + 73, hy0 + 36); c.moveTo(hx0 + 58, hy0 + 25); c.lineTo(hx0 + 88, hy0 + 25); c.stroke();
+    c.fillStyle = "#6c4a3a"; c.fillRect(hx0 + 82, hy0 - 40, 12, 40);
+    for (let i = 0; i < 6; i++) { const t = (ts * 0.22 + i / 6) % 1, px = hx0 + 88 + t * 34 + Math.sin(t * 6 + i) * 4, py = hy0 - 42 - t * 90; c.fillStyle = `rgba(222,216,206,${(1 - t) * 0.4})`; c.beginPath(); c.arc(px, py, 5 + t * 15, 0, 7); c.fill(); }
+    // kule
+    c.strokeStyle = "#2c2118"; c.lineWidth = 7; c.beginPath(); c.moveTo(cx - 48, sf - 8); c.lineTo(cx - 11, sf - 150); c.moveTo(cx + 48, sf - 8); c.lineTo(cx + 11, sf - 150); c.stroke();
+    c.strokeStyle = "#6b4a2c"; c.lineWidth = 4; c.beginPath(); c.moveTo(cx - 48, sf - 8); c.lineTo(cx - 11, sf - 150); c.moveTo(cx + 48, sf - 8); c.lineTo(cx + 11, sf - 150); c.stroke();
+    c.strokeStyle = "#4a3320"; c.lineWidth = 2.4; for (let i = 0; i < 5; i++) { const f0 = i / 5, f1 = (i + 1) / 5, xa = 48 - 37 * f0, xb = 48 - 37 * f1, ya = sf - 8 - 142 * f0, yb = sf - 8 - 142 * f1; c.beginPath(); c.moveTo(cx - xa, ya); c.lineTo(cx + xb, yb); c.moveTo(cx + xa, ya); c.lineTo(cx - xb, yb); c.moveTo(cx - xb, yb); c.lineTo(cx + xb, yb); c.stroke(); }
+    c.fillStyle = "#2c2118"; c.fillRect(cx - 18, sf - 158, 36, 8);
+    c.strokeStyle = "#cfd6dd"; c.lineWidth = 3.4; c.beginPath(); c.arc(cx, sf - 168, 20, 0, 7); c.stroke(); c.lineWidth = 1.6; const wr = ts * (fl ? 3.2 : 0.7); for (let i = 0; i < 8; i++) { c.beginPath(); c.moveTo(cx, sf - 168); c.lineTo(cx + Math.cos(wr + i * 0.785) * 20, sf - 168 + Math.sin(wr + i * 0.785) * 20); c.stroke(); }
+    c.fillStyle = "#e6c15a"; c.beginPath(); c.arc(cx, sf - 168, 4, 0, 7); c.fill();
+    c.strokeStyle = "#1c1612"; c.lineWidth = 1.4; c.beginPath(); c.moveTo(cx + 18, sf - 164); c.lineTo(hx0 + 30, hy0 - 22); c.stroke();
+    c.fillStyle = fl ? "#ff5a3c" : "#7a3a30"; c.beginPath(); c.arc(cx, sf - 176, 2.6, 0, 7); c.fill();
+  }
+  function dgDraw(ts) {
+    const c = dgx, W2 = 960, H2 = 400, cx = 480; c.setTransform(2, 0, 0, 2, 0, 0);
+    const fl = DG.phase === "fly", crashed = DG.phase === "crash";
+    const d = DG.phase === "count" || DG.phase === "idle" || DG.phase === "wait" ? 0 : Math.log(DG.mult) * 300, cy = d - 30, sy = w => w - cy, tipY = 230;
+    c.fillStyle = "#1a120e"; c.fillRect(0, 0, W2, H2);
+    const sf = sy(140);
+    if (sf > 0) dgSurface(c, sf, ts, cx, fl);
+    const b0 = Math.max(0, Math.floor((cy - 140) / 90)), b1 = Math.floor((cy + H2 - 140) / 90), gemsV = [];
+    for (let bi = b0; bi <= b1; bi++) { const y = sy(140 + bi * 90), e = dgBand(bi); c.drawImage(e.cv, 0, y, W2, 92); e.gems.forEach(q => gemsV.push({ x: q.x, y: y + q.y, s: q.s, col: q.col })); }
+    // kuyu
+    const top = Math.max(0, sf - 6), SW = 30, lamps = [];
+    const wTop = top + cy, wBot = tipY + 8 + cy;
+    c.beginPath(); c.moveTo(cx - SW, top);
+    for (let w = Math.floor(wTop / 10) * 10; w <= wBot + 10; w += 10) c.lineTo(cx - SW + (dgHash(w) - 0.5) * 5, clamp(sy(w), top, tipY + 8));
+    for (let w = Math.floor(wBot / 10) * 10 + 10; w >= wTop - 10; w -= 10) c.lineTo(cx + SW + (dgHash(w + 77) - 0.5) * 5, clamp(sy(w), top, tipY + 8));
+    c.closePath(); const sg = c.createLinearGradient(cx - SW, 0, cx + SW, 0); sg.addColorStop(0, "#050302"); sg.addColorStop(0.5, "#160d08"); sg.addColorStop(1, "#050302"); c.fillStyle = sg; c.fill(); c.strokeStyle = "rgba(0,0,0,.7)"; c.lineWidth = 2.5; c.stroke();
+    c.save(); c.beginPath(); c.rect(cx - 34, top, 68, tipY - top + 6); c.clip();
+    const wood = (x, w) => { const wg = c.createLinearGradient(x, 0, x + w, 0); wg.addColorStop(0, "#8a6238"); wg.addColorStop(0.5, "#6b4a2c"); wg.addColorStop(1, "#3f2b1a"); return wg; };
+    c.fillStyle = wood(cx - 30, 5); c.fillRect(cx - 30, top, 5, tipY - top); c.fillStyle = wood(cx + 25, 5); c.fillRect(cx + 25, top, 5, tipY - top);
+    c.strokeStyle = "rgba(0,0,0,.28)"; c.lineWidth = 0.8; for (let w = Math.floor((cy - 60) / 23) * 23; w < cy + tipY; w += 23) { const y = sy(w); c.beginPath(); c.moveTo(cx - 28, y); c.lineTo(cx - 26, y + 9); c.moveTo(cx + 27, y + 4); c.lineTo(cx + 29, y + 12); c.stroke(); }
+    const bw0 = 160 + Math.floor((cy - 160) / 64) * 64;
+    for (let w = bw0; w < cy + tipY + 70; w += 64) {
+      const y = sy(w); c.strokeStyle = "#4e3622"; c.lineWidth = 3; c.beginPath(); c.moveTo(cx - 28, y + 6); c.lineTo(cx + 28, y + 64 - 2); c.stroke(); c.strokeStyle = "rgba(255,220,170,.12)"; c.lineWidth = 0.8; c.beginPath(); c.moveTo(cx - 28, y + 5); c.lineTo(cx + 28, y + 62); c.stroke();
+      const bg = c.createLinearGradient(0, y, 0, y + 7); bg.addColorStop(0, "#9a6e3e"); bg.addColorStop(1, "#4a321e"); c.fillStyle = bg; c.fillRect(cx - 31, y, 62, 7);
+      c.fillStyle = "rgba(0,0,0,.32)"; c.fillRect(cx - 28, y + 7, 56, 4); c.fillStyle = "#b9bfc5"; [-27, 26].forEach(o => { c.beginPath(); c.arc(cx + o, y + 3.5, 1.2, 0, 7); c.fill(); });
+    }
+    const pg2 = c.createLinearGradient(cx + 13, 0, cx + 20, 0); pg2.addColorStop(0, "#5e676f"); pg2.addColorStop(0.4, "#c2cbd2"); pg2.addColorStop(1, "#444b52"); c.fillStyle = pg2; c.fillRect(cx + 13, top, 7, tipY - top);
+    c.fillStyle = "#2f353a"; for (let w = Math.floor((cy - 40) / 80) * 80 + 40; w < cy + tipY; w += 80) c.fillRect(cx + 11, sy(w), 11, 4);
+    c.strokeStyle = "#181410"; c.lineWidth = 2.4; c.beginPath(); c.moveTo(cx - 15, top); c.lineTo(cx - 15, tipY); c.stroke(); c.strokeStyle = "rgba(255,160,70,.35)"; c.lineWidth = 0.7; c.beginPath(); c.moveTo(cx - 15.6, top); c.lineTo(cx - 15.6, tipY); c.stroke();
+    c.fillStyle = "#8a8f94"; for (let w = Math.floor((cy - 20) / 50) * 50 + 20; w < cy + tipY; w += 50) c.fillRect(cx - 17.5, sy(w), 5, 3);
+    c.strokeStyle = "rgba(160,210,255,.7)"; c.lineWidth = 1.4; for (let i = 0; i < 4; i++) { const t = (ts * 0.8 + i * 0.27) % 1, dx = cx + (i % 2 ? -22 : 24), dy = 20 + ((ts * 90 + i * 140) % 200); if (dy > top && dy < tipY - 6) { c.beginPath(); c.moveTo(dx, dy); c.lineTo(dx, dy + 3 + t * 2); c.stroke(); } }
+    c.restore();
+    for (let w = 220 + Math.floor((cy - 220) / 120) * 120, k = 0; w < cy + tipY + 40; w += 120, k++) {
+      const y = sy(w), idx = Math.round((w - 220) / 120), lx = cx + (idx % 2 ? 36 : -36);
+      if (y > top + 6 && y < tipY - 6) { c.fillStyle = "#26211c"; c.fillRect(lx - 4, y - 7, 8, 10); c.strokeStyle = "#3a2e24"; c.lineWidth = 2; c.beginPath(); c.moveTo(lx, y - 7); c.lineTo(lx + (idx % 2 ? -8 : 8), y - 7); c.stroke(); c.fillStyle = "#ffe3a0"; c.fillRect(lx - 2.4, y - 5, 4.8, 7); lamps.push({ x: lx, y, ph: idx }); }
+    }
+    // çarpan çizgileri ve ruler
+    c.font = "600 11px 'IBM Plex Mono', monospace"; c.textBaseline = "middle"; c.textAlign = "left";
+    for (const g of [1.5, 2, 3, 5, 10, 20, 50, 100]) { const y = sy(200 + Math.log(g) * 300); if (y > 10 && y < H2 - 8) { c.strokeStyle = "rgba(255,255,255,.14)"; c.setLineDash([6, 6]); c.beginPath(); c.moveTo(0, y); c.lineTo(cx - 36, y); c.moveTo(cx + 36, y); c.lineTo(W2 - 40, y); c.stroke(); c.setLineDash([]); c.fillStyle = "rgba(255,255,255,.6)"; c.fillText(g + "x", 8, y - 8); } }
+    c.fillStyle = "rgba(0,0,0,.4)"; c.fillRect(W2 - 40, 0, 40, H2); c.strokeStyle = "rgba(255,255,255,.2)"; c.beginPath(); c.moveTo(W2 - 40, 0); c.lineTo(W2 - 40, H2); c.stroke();
+    c.textAlign = "right"; for (let j = Math.floor((cy - 140) / 30); j <= Math.floor((cy + H2 - 140) / 30); j++) { if (j < 0) continue; const y = sy(140 + j * 30), big = j % 3 === 0; c.strokeStyle = big ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.28)"; c.beginPath(); c.moveTo(W2 - 40, y); c.lineTo(W2 - 40 + (big ? 11 : 6), y); c.stroke(); if (big) { c.fillStyle = "rgba(255,255,255,.7)"; c.fillText(j * 10 + " m", W2 - 4, y); } }
+    c.fillStyle = "#ffd24a"; c.beginPath(); c.moveTo(W2 - 40, tipY + 4); c.lineTo(W2 - 28, tipY - 3); c.lineTo(W2 - 28, tipY + 11); c.closePath(); c.fill(); c.textAlign = "left";
+    // ışık / karanlık
+    const a0 = clamp(0.32 + d / 2400, 0.32, 0.8), dk0 = Math.max(0, sf);
+    c.save(); c.beginPath(); c.rect(0, dk0, W2, H2 - dk0); c.clip();
+    const lg0 = c.createLinearGradient(0, dk0, 0, dk0 + 200); lg0.addColorStop(0, "rgba(0,0,0,0)"); lg0.addColorStop(1, `rgba(0,0,0,${a0 * 0.45})`); c.fillStyle = lg0; c.fillRect(0, dk0, W2, H2 - dk0);
+    const rg = c.createRadialGradient(cx, tipY - 6, 30, cx, tipY - 6, 440); rg.addColorStop(0, "rgba(0,0,0,0)"); rg.addColorStop(0.35, `rgba(2,2,6,${a0 * 0.4})`); rg.addColorStop(1, `rgba(2,2,6,${a0})`); c.fillStyle = rg; c.fillRect(0, dk0, W2, H2 - dk0);
+    c.fillStyle = `rgba(10,20,70,${clamp(d / 2800, 0, 0.3)})`; c.fillRect(0, dk0, W2, H2 - dk0); c.restore();
+    if (d > 1100) { const lv = c.createLinearGradient(0, H2, 0, H2 - 190); const a = clamp((d - 1100) / 1500, 0, 0.6); lv.addColorStop(0, `rgba(255,90,20,${a})`); lv.addColorStop(1, "rgba(255,90,20,0)"); c.fillStyle = lv; c.fillRect(0, H2 - 190, W2, 190); }
+    c.globalCompositeOperation = "lighter";
+    lamps.forEach(l => { const fk = 0.85 + 0.15 * Math.sin(ts * 13 + l.ph * 2.1) * Math.sin(ts * 5.3 + l.ph), r = 58 * fk; const lg = c.createRadialGradient(l.x, l.y, 1, l.x, l.y, r); lg.addColorStop(0, "rgba(255,205,120,.62)"); lg.addColorStop(0.4, "rgba(255,170,80,.2)"); lg.addColorStop(1, "rgba(255,150,60,0)"); c.fillStyle = lg; c.fillRect(l.x - r, l.y - r, r * 2, r * 2); });
+    gemsV.forEach(q => { if (q.y < -10 || q.y > H2 + 10) return; const dist = Math.hypot(q.x - cx, q.y - tipY), lit = clamp(1 - dist / 230, 0, 1), pulse = Math.sin(ts * 2.4 + q.x * 0.13 + q.y * 0.07), gl = 0.1 + 0.4 * lit;
+      const hr = 11 + q.s * 2, hg = c.createRadialGradient(q.x, q.y, 0.5, q.x, q.y, hr); hg.addColorStop(0, dgShade(q.col, 1, gl)); hg.addColorStop(1, dgShade(q.col, 1, 0)); c.fillStyle = hg; c.fillRect(q.x - hr, q.y - hr, hr * 2, hr * 2);
+      if (pulse > 0.8) { const f = (pulse - 0.8) * 5 * (5 + q.s); c.fillStyle = "rgba(255,255,255,.85)"; c.beginPath(); c.moveTo(q.x, q.y - f); c.lineTo(q.x + f * 0.16, q.y - f * 0.16); c.lineTo(q.x + f, q.y); c.lineTo(q.x + f * 0.16, q.y + f * 0.16); c.lineTo(q.x, q.y + f); c.lineTo(q.x - f * 0.16, q.y + f * 0.16); c.lineTo(q.x - f, q.y); c.lineTo(q.x - f * 0.16, q.y - f * 0.16); c.closePath(); c.fill(); } });
+    c.globalCompositeOperation = "source-over";
+    // kablo + matkap
+    const spin = ts * (fl ? 22 : 2), shakeX = crashed ? Math.sin(ts * 80) * 2 * Math.max(0, 1 - (Date.now() - (DG.nextAt - 3200)) / 600) : 0;
+    const gl = c.createRadialGradient(cx, tipY - 10, 4, cx, tipY - 10, 150); gl.addColorStop(0, `rgba(255,190,90,${Math.min(0.8, 0.34 + Math.log(Math.max(1, DG.mult)) * 0.2)})`); gl.addColorStop(1, "rgba(255,190,90,0)");
+    c.globalCompositeOperation = "lighter"; c.fillStyle = gl; c.fillRect(cx - 160, tipY - 160, 320, 300);
+    [-1, 1].forEach(sd => { const bgd = c.createLinearGradient(cx + sd * 14, tipY - 18, cx + sd * 60, tipY + 80); bgd.addColorStop(0, "rgba(255,232,170,.34)"); bgd.addColorStop(1, "rgba(255,232,170,0)"); c.fillStyle = bgd; c.beginPath(); c.moveTo(cx + sd * 13, tipY - 20); c.lineTo(cx + sd * 18, tipY - 14); c.lineTo(cx + sd * 74, tipY + 82); c.lineTo(cx + sd * 40, tipY + 86); c.closePath(); c.fill(); });
+    c.globalCompositeOperation = "source-over";
+    const PAL = { altin: ["#9a7a1c", "#ffe08a", "#6a5010", "#fff1b8"], elmas: ["#3a8fa4", "#dcfbff", "#246a7c", "#eefcff"] }[skin("drill")] || ["#56606a", "#b3bdc7", "#363e46", "#d8dee4"];
+    c.save(); c.translate(cx + shakeX, 0);
+    const py0 = Math.max(0, sf - 150), pg = c.createLinearGradient(-5, 0, 5, 0); pg.addColorStop(0, "#43484e"); pg.addColorStop(0.35, "#cdd4da"); pg.addColorStop(1, "#3a3f45"); c.fillStyle = pg; c.fillRect(-5, py0, 10, tipY - 58 - py0);
+    for (let w = Math.floor((cy - 20) / 40) * 40 + 20; w < cy + tipY; w += 40) { const y = sy(w); if (y > py0 && y < tipY - 62) { c.fillStyle = "#23272b"; c.fillRect(-7, y, 14, 4); c.fillStyle = "rgba(255,255,255,.6)"; c.fillRect(-7, y, 14, 1); } }
+    if (fl) { c.fillStyle = "rgba(255,255,255,.35)"; for (let y = py0 + ((ts * 120) % 14); y < tipY - 60; y += 14) c.fillRect(-1.5, y, 3, 2); }
+    const bd = c.createLinearGradient(-17, 0, 17, 0); bd.addColorStop(0, PAL[0]); bd.addColorStop(0.3, PAL[1]); bd.addColorStop(0.62, PAL[0]); bd.addColorStop(1, PAL[2]); c.fillStyle = bd; c.fillRect(-17, tipY - 58, 34, 42);
+    c.fillStyle = "rgba(0,0,0,.35)"; [tipY - 50, tipY - 40, tipY - 30].forEach(y => c.fillRect(-17, y, 34, 1.5)); c.fillStyle = "rgba(255,255,255,.28)"; [tipY - 48.5, tipY - 38.5, tipY - 28.5].forEach(y => c.fillRect(-17, y, 34, 1));
+    c.save(); c.beginPath(); c.rect(-17, tipY - 27, 34, 9); c.clip(); c.fillStyle = "#f2b441"; c.fillRect(-17, tipY - 27, 34, 9); c.fillStyle = "#1c1c1c"; for (let x = -30; x < 30; x += 10) { c.beginPath(); c.moveTo(x, tipY - 18); c.lineTo(x + 5, tipY - 18); c.lineTo(x + 11, tipY - 27); c.lineTo(x + 6, tipY - 27); c.closePath(); c.fill(); } c.restore();
+    [-1, 1].forEach(sd => { const hg = c.createLinearGradient(sd * 19, 0, sd * 24, 0); hg.addColorStop(0, "#9aa3ab"); hg.addColorStop(1, "#444b52"); c.fillStyle = hg; c.fillRect(sd > 0 ? 18 : -23, tipY - 52, 5, 28); c.fillStyle = "#d8dee4"; c.fillRect(sd > 0 ? 19 : -22, tipY - 52 + (fl ? Math.sin(ts * 22) * 2 : 0), 3, 10); c.fillStyle = "#fff2c0"; c.beginPath(); c.arc(sd * 15, tipY - 21, 3, 0, 7); c.fill(); c.fillStyle = "#26211c"; c.fillRect(sd * 15 - 4, tipY - 26, 8, 3); });
+    c.fillStyle = "#23272b"; c.fillRect(-20, tipY - 17, 40, 7); c.fillStyle = "#9aa3ab"; for (let x = -16; x <= 16; x += 8) { c.beginPath(); c.arc(x, tipY - 13.5, 1.2, 0, 7); c.fill(); }
+    c.fillStyle = fl ? "#52ff8a" : (Math.sin(ts * 5) > 0 ? "#ff4d3c" : "#5a1c16"); c.beginPath(); c.arc(0, tipY - 54, 2.6, 0, 7); c.fill();
+    const bt = c.createLinearGradient(-15, 0, 15, 0); bt.addColorStop(0, PAL[2]); bt.addColorStop(0.35, PAL[3]); bt.addColorStop(1, PAL[2]); c.fillStyle = bt; c.beginPath(); c.moveTo(-15, tipY - 10); c.lineTo(15, tipY - 10); c.lineTo(2.2, tipY + 15); c.lineTo(-2.2, tipY + 15); c.closePath(); c.fill();
+    c.save(); c.clip(); c.strokeStyle = "rgba(0,0,0,.5)"; c.lineWidth = 1.6; for (let k = 0; k < 6; k++) { const t = ((k + spin * 0.16) % 6) / 6, y = tipY - 10 + t * 25, hw = 15 * (1 - t); c.beginPath(); c.moveTo(-hw, y - 3); c.lineTo(hw, y + 3); c.stroke(); } c.restore();
+    c.fillStyle = "#fff"; c.beginPath(); c.moveTo(-3, tipY + 13); c.lineTo(0, tipY + 20); c.lineTo(3, tipY + 13); c.closePath(); c.fill(); c.fillStyle = "#e9eef2"; [-11, -6, 6, 11].forEach((x, i) => { c.beginPath(); c.moveTo(x - 1.6, tipY - 7 + (i % 3) * 3); c.lineTo(x + 1.6, tipY - 7 + (i % 3) * 3); c.lineTo(x, tipY - 3 + (i % 3) * 3); c.closePath(); c.fill(); });
+    c.restore();
+    // parçacıklar
+    if (fl) {
+      const rock = strata()[Math.floor((d + 200 - 140) / 90) % 6 < 0 ? 0 : Math.floor((d + 200 - 140) / 90) % 6];
+      if (DG.parts.length < 130) { for (let k = 0; k < 2; k++) DG.parts.push({ x: cx + (Math.random() - 0.5) * 12, y: tipY + 14, vx: (Math.random() - 0.5) * 170, vy: 20 + Math.random() * 120, life: 1, hot: Math.random() < 0.6 }); DG.parts.push({ x: cx + (Math.random() - 0.5) * 16, y: tipY + 12, vx: (Math.random() - 0.5) * 120, vy: -40 - Math.random() * 90, life: 1.4, rock: true, s: 1.6 + Math.random() * 2.6, col: dgShade(rock, 0.8 + Math.random() * 0.9) }); }
+      if (DG.clouds.length < 22 && Math.random() < 0.3) DG.clouds.push({ x: cx + (Math.random() - 0.5) * 30, y: tipY + 12, r: 4, vx: (Math.random() - 0.5) * 60, life: 1, g: 0.35, d: 0.02, a: 0.28 });
+    }
+    for (let i = DG.parts.length - 1; i >= 0; i--) { const p = DG.parts[i]; p.life -= p.rock ? 0.022 : 0.03; p.x += p.vx / 60; p.y += p.vy / 60; p.vy += p.rock ? 7 : 4; if (p.life <= 0) { DG.parts.splice(i, 1); continue; } c.globalAlpha = Math.min(1, p.life); if (p.rock) { c.fillStyle = p.col; c.fillRect(p.x, p.y, p.s, p.s); } else { c.globalCompositeOperation = "lighter"; c.fillStyle = p.hot ? "#ffb347" : "#fff3c4"; c.fillRect(p.x, p.y, 2.2, 2.2); c.globalCompositeOperation = "source-over"; } }
+    c.globalAlpha = 1;
+    for (let i = DG.rubble.length - 1; i >= 0; i--) { const r = DG.rubble[i]; if (!r.done) { r.vy += 0.6; r.y += r.vy; if (r.y >= tipY - 6 - Math.random() * 20) { r.y = tipY - 6; r.done = true; } } c.save(); c.translate(r.x, r.y); c.rotate(r.rot); const rgr = c.createLinearGradient(-r.r, -r.r, r.r, r.r); rgr.addColorStop(0, "#8a7358"); rgr.addColorStop(1, "#3e3024"); c.fillStyle = rgr; c.beginPath(); c.moveTo(-r.r, r.r * 0.6); c.lineTo(-r.r * 0.3, -r.r); c.lineTo(r.r, -r.r * 0.2); c.lineTo(r.r * 0.7, r.r * 0.7); c.closePath(); c.fill(); c.strokeStyle = "rgba(0,0,0,.4)"; c.lineWidth = 0.8; c.stroke(); c.fillStyle = "rgba(255,255,255,.14)"; c.fillRect(-r.r * 0.3, -r.r, r.r * 0.5, 3); c.restore(); }
+    for (let i = DG.clouds.length - 1; i >= 0; i--) { const q = DG.clouds[i]; q.life -= q.d || 0.012; q.r += q.g || 0.9; q.x += q.vx / 60; if (q.life <= 0) { DG.clouds.splice(i, 1); continue; } c.globalAlpha = q.life * (q.a || 0.35); c.fillStyle = "#b39b7e"; c.beginPath(); c.arc(q.x, q.y, q.r, 0, 7); c.fill(); }
+    c.globalAlpha = 1;
+    for (let i = 0; i < 22; i++) { const mx = (i * 53 + ts * 8 * (1 + i % 3)) % W2, my = (i * 37 + Math.sin(ts * 0.5 + i) * 20 + ts * 3 * (i % 4 + 1)) % H2; c.fillStyle = `rgba(255,235,200,${0.1 + 0.1 * Math.sin(ts + i)})`; c.fillRect(mx, my, 1.6, 1.6); }
+    for (let i = DG.coins.length - 1; i >= 0; i--) { const q = DG.coins[i]; q.x += q.vx; q.y += q.vy; q.vy += 0.35; q.rot += 0.3; q.life -= 0.012; if (q.life <= 0 || q.y > H2 + 10) { DG.coins.splice(i, 1); continue; } c.globalAlpha = Math.min(1, q.life * 2); const cw = 6 * Math.abs(Math.cos(q.rot)) + 1, cgr = c.createLinearGradient(q.x - cw, 0, q.x + cw, 0); cgr.addColorStop(0, "#c98f00"); cgr.addColorStop(0.5, "#fff0a0"); cgr.addColorStop(1, "#c98f00"); c.fillStyle = cgr; c.strokeStyle = "#8a5a00"; c.lineWidth = 1.2; c.beginPath(); c.ellipse(q.x, q.y, cw, 6, 0, 0, 7); c.fill(); c.stroke(); }
+    c.globalAlpha = 1;
+    if (crashed) { c.fillStyle = `rgba(255,40,20,${0.08 + 0.05 * Math.sin(ts * 12)})`; c.fillRect(0, 0, W2, H2); }
+    const vg = c.createRadialGradient(cx, H2 / 2, H2 * 0.3, cx, H2 / 2, W2 * 0.62); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.55)"); c.fillStyle = vg; c.fillRect(0, 0, W2, H2);
+    if (DG.flash > 0) { c.fillStyle = `rgba(255,240,210,${DG.flash * 0.7})`; c.fillRect(0, 0, W2, H2); DG.flash = Math.max(0, DG.flash - 0.06); }
+  }
+  function dgOpen(pid) {
+    if (typeof pid === "number" && S.parcels[pid].owner && !DG.bets.some(Boolean)) DG.pid = pid;
+    dgFill(); dgq("dig").scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+  }
+  dgq("dg-parcel").addEventListener("change", e => { DG.pid = +e.target.value; });
+  dgq("dg-bets").addEventListener("click", e => {
+    const el = e.target.closest("[data-dadj],[data-dq],[data-dtog],.dg-main,.dg-cash"); if (!el) return;
+    let v;
+    if ((v = el.dataset.dadj)) { v = v.split(":"); dgSetAmt(+v[0], (+dgq("dgamt" + v[0]).value || 0) + +v[1]); }
+    else if ((v = el.dataset.dq)) { v = v.split(":"); dgSetAmt(+v[0], +v[1]); }
+    else if ((v = el.dataset.dtog)) { v = v.split(":"); const on = el.getAttribute("aria-pressed") !== "true"; el.setAttribute("aria-pressed", String(on)); DG.auto[+v[0]][v[1]] = on; }
+    else if (el.classList.contains("dg-main")) { const i = +el.id.slice(4); if (DG.bets[i] && !DG.bets[i].live) dgCancel(i); else dgPlace(i); }
+  });
+  dgq("dg-bets").addEventListener("pointerdown", e => { const b = e.target.closest("[data-dcash]"); if (b) { e.preventDefault(); dgCash(+b.dataset.dcash); } });
+  dgq("dg-bets").addEventListener("change", e => {
+    if (e.target.id && e.target.id.indexOf("dgamt") === 0) dgSetAmt(+e.target.id.slice(5), +e.target.value);
+    if (e.target.id && e.target.id.indexOf("dgav") === 0) { const i = +e.target.id.slice(4); e.target.value = DG.auto[i].v = Math.max(1.01, parseFloat(e.target.value) || 2).toFixed(2); DG.auto[i].v = +e.target.value; }
+  });
+  window.addEventListener("keydown", e => {
+    if (!DG.open) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ""))) return;
+    if (e.key === "1" || e.key === "2") { const i = +e.key, b = DG.bets[i]; if (b && b.live) dgCash(i); else if (b) dgCancel(i); else dgPlace(i); }
+  });
+  const nickEl = dgq("dg-nick"); try { nickEl.value = localStorage.getItem("pm-nick") || ""; } catch (e) {}
+  if (!nickEl.value) nickEl.value = "Madenci" + (100 + Math.floor(Math.random() * 900));
+  nickEl.addEventListener("change", () => { nickEl.value = nickEl.value.replace(/[<>]/g, "").trim().slice(0, 14) || "Madenci"; try { localStorage.setItem("pm-nick", nickEl.value); } catch (e) {} DG.pres = ""; });
+  dgq("dg-mode").addEventListener("click", () => {
+    if (DG.bets.some(Boolean)) { sfx.no(); dgMsg("Kazı sürerken mod değiştirilemez"); return; }
+    DG.multi = !DG.multi; DG.k = null; DG.round = null; DG.pres = ""; if (!DG.multi) { DG.phase = "idle"; dgCountdown(); }
+    dput("dg-mode", DG.multi ? "Ortak turlar: açık" : "Tek kişilik");
+  });
+  (async () => {
+    try {
+      const room = window.claude && await window.claude.use("room"); if (!room) return;
+      DG.room = room; dgq("dg-mode").hidden = false;
+      room.onPeers(ch => { DG.peers = ch.peers; DG.botsDirty = true; dgRenderPeers(); }, () => {});
+      if (!DG.bets.some(Boolean)) { DG.multi = true; DG.k = null; dput("dg-mode", "Ortak turlar: açık"); }
+      setInterval(dgRenderPeers, 2000); dgRenderPeers();
+    } catch (e) {}
+  })();
+  $("dig-open").addEventListener("click", () => dgOpen(selected !== null && S.parcels[selected].owner ? selected : undefined));
+
+  /* ---------- Mağaza: görünümler ve ödüllü reklam (demo) ---------- */
+  const OUTFITS = { klasik: SHIRTS, altin: ["#d9a62b", "#f2c94c", "#b8861b", "#e8b93a", "#c99a2c"], neon: ["#ff2fb3", "#22e6ff", "#7dff4f", "#b24dff", "#ffe600"], takim: ["#2f6fd0", "#2f6fd0", "#2f6fd0", "#2f6fd0", "#2f6fd0"] };
+  const STRATAS = { klasik: ["#5b4636", "#4a3a30", "#6a5545", "#3f3a44", "#52402f", "#463a34"], kristal: ["#3b3550", "#2e2a46", "#463a5e", "#2a3552", "#3a3158", "#2f2c4a"], lav: ["#5a2a1e", "#47201a", "#6a3322", "#3a1f1c", "#52281d", "#41231b"] };
+  const VEINS = { klasik: ["#f2b441", "#5fd3b0", "#9ad8ff"], kristal: ["#7fe9ff", "#f09bff", "#b4a0ff"], lav: ["#ffb347", "#ff6a3d", "#fff08a"] };
+  const SHOP = [
+    { id: "map-klasik", cat: "map", n: "klasik", name: "Klasik Havza", price: 0, desc: "Varsayılan arazi görünümü.", sw: "linear-gradient(135deg,#3b7f80,#3f6b34,#5a5048,#b08a4a)", filter: "none" },
+    { id: "map-kis", cat: "map", n: "kis", name: "Kış Havzası", price: 900, desc: "Soğuk tonlar ve yağan kar.", sw: "linear-gradient(135deg,#9fc4d9,#dfeaf2,#7fa0b8)", filter: "saturate(.6) brightness(1.12) hue-rotate(150deg)", snow: true },
+    { id: "map-gunbatimi", cat: "map", n: "gunbatimi", name: "Gün Batımı", price: 700, desc: "Sıcak, turuncu ışık.", sw: "linear-gradient(135deg,#ffb066,#d9602e,#7a2d3a)", filter: "sepia(.45) saturate(1.5) hue-rotate(-18deg)" },
+    { id: "map-neon", cat: "map", n: "neon", name: "Neon Şehir", price: 1200, desc: "Canlı mor ve mavi tonlar.", sw: "linear-gradient(135deg,#ff2fb3,#22e6ff,#7a4dff)", filter: "hue-rotate(250deg) saturate(1.5) contrast(1.08)" },
+    { id: "outfit-klasik", cat: "outfit", n: "klasik", name: "İş Tulumu", price: 0, desc: "Renkli klasik ekip.", sw: "linear-gradient(90deg,#d8693c,#3e7fd0,#4fa56a,#b05cc0)" },
+    { id: "outfit-takim", cat: "outfit", n: "takim", name: "Takım Forması", price: 500, desc: "Tüm madenciler aynı mavide.", sw: "linear-gradient(90deg,#2f6fd0,#4b8be8)" },
+    { id: "outfit-altin", cat: "outfit", n: "altin", name: "Altın Ekip", price: 600, desc: "Parlak altın tulumlar.", sw: "linear-gradient(90deg,#b8861b,#f2c94c,#d9a62b)" },
+    { id: "outfit-neon", cat: "outfit", n: "neon", name: "Neon Ekip", price: 800, desc: "Karanlıkta dikkat çeken renkler.", sw: "linear-gradient(90deg,#ff2fb3,#22e6ff,#7dff4f,#ffe600)" },
+    { id: "drill-klasik", cat: "drill", n: "klasik", name: "Çelik Matkap", price: 0, desc: "Standart sondaj kulesi.", sw: "linear-gradient(135deg,#8f99a3,#cfd6dd)" },
+    { id: "drill-altin", cat: "drill", n: "altin", name: "Altın Matkap", price: 1000, desc: "Altın kaplama kule ve uç.", sw: "linear-gradient(135deg,#c9a227,#ffe08a)" },
+    { id: "drill-elmas", cat: "drill", n: "elmas", name: "Elmas Matkap", price: 1500, desc: "Buz mavisi parlayan uç.", sw: "linear-gradient(135deg,#5fb7c9,#d9fbff)" },
+    { id: "shaft-klasik", cat: "shaft", n: "klasik", name: "Toprak Kuyu", price: 0, desc: "Derin Kazı'nın klasik katmanları.", sw: "linear-gradient(180deg,#5b4636,#4a3a30,#6a5545)" },
+    { id: "shaft-kristal", cat: "shaft", n: "kristal", name: "Kristal Mağara", price: 1100, desc: "Mor kayalar, parlayan kristaller.", sw: "linear-gradient(180deg,#3b3550,#463a5e,#7fe9ff)" },
+    { id: "shaft-lav", cat: "shaft", n: "lav", name: "Lav Kuyusu", price: 1300, desc: "Kızıl katmanlar ve ateş damarları.", sw: "linear-gradient(180deg,#5a2a1e,#6a3322,#ff6a3d)" }
+  ];
+  const CATS = { map: "Harita teması", outfit: "Madenci kıyafeti", drill: "Matkap", shaft: "Kuyu teması" };
+  const SHOP_BY = Object.fromEntries(SHOP.map(i => [i.id, i]));
+  let pv = {}, shopTab = "skins";
+  const skin = cat => pv[cat] || (S.shop.equip && S.shop.equip[cat]) || "klasik";
+  const shirts = () => OUTFITS[skin("outfit")] || SHIRTS;
+  const strata = () => STRATAS[skin("shaft")] || STRATAS.klasik;
+  const veinCol = bi => (VEINS[skin("shaft")] || VEINS.klasik)[bi < 4 ? 0 : bi < 9 ? 1 : 2];
+  const towerCol = p => { const k = skin("drill"); return k === "altin" ? "#f2c94c" : k === "elmas" ? "#7fe9ff" : p.drill >= 5 ? "#f2b441" : p.drill >= 4 ? "#e0a53a" : "#8f99a3"; };
+  const rarity = pr => pr === 0 ? ["Varsayılan", ""] : pr < 800 ? ["Nadir", "r-rare"] : pr < 1300 ? ["Epik", "r-epic"] : ["Efsanevi", "r-legend"];
+  function applyMapSkin() {
+    const it = SHOP_BY["map-" + skin("map")];
+    if (it && it.filter && it.filter !== "none" && skin("map") !== "klasik") cv.style.filter = it.filter;
+    else cv.style.filter = (ch() && ch().filter) || "none";
+  }
+  const owned = it => it.price === 0 || !!S.shop.owned[it.id];
+  function shopBuy(id) {
+    const it = SHOP_BY[id]; if (!it || owned(it)) return;
+    if (S.wallet < it.price) { sfx.no(); toast("Bakiye yetersiz."); return; }
+    S.wallet -= it.price; S.shop.owned[id] = true; S.shop.equip[it.cat] = it.n; delete pv[it.cat];
+    log(`Mağaza: ${it.name} satın alındı.`); toast(`${it.name} senin.`); sfx.buy(); applyMapSkin(); checkQuests(); refresh(true); renderShop();
+  }
+  function shopEquip(id) { const it = SHOP_BY[id]; if (!it || !owned(it)) return; S.shop.equip[it.cat] = it.n; delete pv[it.cat]; sfx.up(); applyMapSkin(); renderShop(); }
+  function shopTry(id) { const it = SHOP_BY[id]; if (!it) return; pv[it.cat] = it.n; applyMapSkin(); renderShop(); }
+  function renderShop() {
+    if ($("shop").hidden) return;
+    $("shopbal").textContent = `Bakiye ${fmt(S.wallet)} puan · Satın alımlar oyun içi puanla yapılır`;
+    [...$("shoptabs").children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === shopTab)));
+    let h = "";
+    if (shopTab === "skins") {
+      const pvKeys = Object.keys(pv);
+      if (pvKeys.length) h += `<div class="pvbar">Önizleme açık: ${pvKeys.map(k => SHOP_BY[k + "-" + pv[k]].name).join(", ")}. Mağazayı kapatınca ya da "Giy" demezsen eski görünüme döner.</div>`;
+      for (const cat of Object.keys(CATS)) {
+        h += `<section><h3 class="lbl">${CATS[cat]}</h3><div class="sgrid">` + SHOP.filter(i => i.cat === cat).map(it => {
+          const on = (S.shop.equip[cat] || "klasik") === it.n, ow = owned(it), [rl, rc] = rarity(it.price), tr = pv[cat] === it.n;
+          const btns = ow ? (on ? `<button class="btn sm" disabled>Kullanımda</button>` : `<button class="btn sm primary" data-sact="equip" data-id="${it.id}">Giy</button>`)
+            : `<button class="btn sm primary" data-sact="buy" data-id="${it.id}" ${S.wallet < it.price ? "disabled" : ""}>Satın al</button><button class="btn sm" data-sact="try" data-id="${it.id}" ${tr ? "disabled" : ""}>${tr ? "Deneniyor" : "Dene"}</button>`;
+          return `<div class="scard ${on ? "on" : ""}"><div class="sw" style="background:${it.sw}"><b class="${rc}">${rl}</b></div><div><h4>${it.name}</h4><p>${it.desc}</p></div><div class="srow"><span class="price">${it.price ? fmt(it.price) + " puan" : "Ücretsiz"}</span><span style="display:flex;gap:6px">${btns}</span></div></div>`;
+        }).join("") + `</div></section>`;
+      }
+    } else {
+      const left = Math.max(0, Math.ceil((S.shop.adAt + 60000 - Date.now()) / 1000)), sh = S.shop;
+      h += `<div class="adcard"><h3 class="lbl" style="margin:0">Ödüllü reklam (demo)</h3><p class="note">Kısa bir reklam izle, ${fmt(AD_REWARD)} puan kazan. Her izlemeden sonra ${AD_COOLDOWN} sn beklemen gerekir.</p>
+        <div class="actions"><button class="btn primary" data-sact="ad" ${left > 0 ? "disabled" : ""}>${left > 0 ? `Tekrar izlemek için ${left} sn` : `Reklam izle · +${fmt(AD_REWARD)} puan`}</button></div><p class="note">İzlenen reklam: ${sh.ads}</p></div>
+        <div class="adcard"><h3 class="lbl" style="margin:0">Reklamsız paket (demo)</h3><p class="note">Derin Kazı bölümündeki reklam alanını kaldırır.</p>
+        <div class="actions">${sh.noAds ? `<button class="btn" disabled>Aktif</button>` : `<button class="btn primary" data-sact="noads" ${S.wallet < 2000 ? "disabled" : ""}>Satın al · 2.000 puan</button>`}</div></div>
+      <p class="note">Bu bir demodur: gerçek reklam ağı ve gerçek ödeme bağlı değildir. Yayına alırken reklam için AdMob/AdSense, ödeme için mağaza içi satın alma ya da bir ödeme sağlayıcısı bağlanır. Ödüller yalnızca oyun içi puandır.</p>`;
+    }
+    setHTML("shopbody", h);
+  }
+  const AD_REWARD = 400, AD_COOLDOWN = 60;
+  let adTimer = null;
+  function adStart() {
+    if (Date.now() < S.shop.adAt + AD_COOLDOWN * 1000) { sfx.no(); return; }
+    $("adview").hidden = false; const claim = $("adclaim"); claim.disabled = true; let t = 8;
+    $("adtxt").textContent = `Ödül ${t} sn sonra açılır`; $("adprog").style.transition = "none"; $("adprog").style.width = "0"; void $("adprog").offsetWidth; $("adprog").style.transition = "width 1s linear";
+    clearInterval(adTimer);
+    adTimer = setInterval(() => { t--; $("adprog").style.width = (8 - t) / 8 * 100 + "%"; if (t > 0) $("adtxt").textContent = `Ödül ${t} sn sonra açılır`; else { clearInterval(adTimer); $("adtxt").textContent = "Reklam bitti"; claim.disabled = false; claim.focus(); } }, 1000);
+    setTimeout(() => { $("adprog").style.width = "12.5%"; }, 30);
+  }
+  function adClaim() {
+    S.wallet += AD_REWARD; S.shop.ads++; S.shop.adAt = Date.now(); $("adview").hidden = true; clearInterval(adTimer);
+    toast(`+${fmt(AD_REWARD)} puan kazandın`); sfx.coin(); log(`Ödüllü reklam: +${fmt(AD_REWARD)} puan.`, "pos"); refresh(true); renderShop();
+  }
+  function openShop() { $("shop").hidden = false; renderShop(); $("shopclose").focus(); }
+  function closeShop() { $("shop").hidden = true; pv = {}; applyMapSkin(); $("adview").hidden = true; clearInterval(adTimer); cv.focus({ preventScroll: true }); }
+  function renderWorldMap() {
+    const prog = chapterProgress();
+    const c = ch();
+    $("wmprog").textContent = S.chapterClearPending
+      ? `Bölüm ${(S.chapter || 0) + 1} tamam! Sonraki temaya geçebilirsin.`
+      : `Şu an: ${c.name} · Tüketilen parsel ${prog.done}/${prog.total} (%${prog.pct})`;
+    $("wm-next").hidden = !S.chapterClearPending || (S.chapter || 0) >= CHAPTERS.length - 1;
+    $("wgrid").innerHTML = CHAPTERS.map((chp, i) => {
+      const unlocked = isChapterUnlocked(i);
+      const cur = i === (S.chapter || 0);
+      const done = i < (S.chapter || 0) || (i === (S.chapter || 0) && allParcelsDepleted());
+      return `<button type="button" class="wnode ${cur ? "cur" : ""} ${done ? "done" : ""}" data-ch="${i}" ${unlocked ? "" : "disabled"}>
+        <span class="wn">${i + 1}. ${chp.name}</span>
+        <span class="ws">${chp.sub}</span>
+        <span class="wh" style="background:${chp.hue}"></span>
+        <span class="lock">${!unlocked ? "Kilitli" : cur ? "Aktif" : done ? "Bitti" : "Acik"}</span>
+      </button>`;
+    }).join("");
+  }
+  function openWorldMap() { $("worldmap").hidden = false; renderWorldMap(); $("wmclose").focus(); }
+  function closeWorldMap() { $("worldmap").hidden = true; }
+  $("world-btn").addEventListener("click", openWorldMap);
+  $("wmclose").addEventListener("click", closeWorldMap);
+  $("worldmap").addEventListener("click", e => { if (e.target === $("worldmap")) closeWorldMap(); });
+  $("wgrid").addEventListener("click", e => {
+    const b = e.target.closest("[data-ch]"); if (!b) return;
+    const i = +b.dataset.ch;
+    if (i === (S.chapter || 0)) { closeWorldMap(); return; }
+    enterChapter(i);
+  });
+  $("wm-next").addEventListener("click", advanceChapter);
+  $("shop-btn").addEventListener("click", openShop);
+  $("shopclose").addEventListener("click", closeShop);
+  $("shop").addEventListener("click", e => { if (e.target === $("shop")) closeShop(); });
+  $("shoptabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { shopTab = b.dataset.tab; renderShop(); } });
+  $("shopbody").addEventListener("click", e => {
+    const b = e.target.closest("[data-sact]"); if (!b) return; const a = b.dataset.sact;
+    if (a === "buy") shopBuy(b.dataset.id); else if (a === "equip") shopEquip(b.dataset.id); else if (a === "try") shopTry(b.dataset.id); else if (a === "ad") adStart();
+    else if (a === "noads") { if (S.wallet >= 2000) { S.wallet -= 2000; S.shop.noAds = true; sfx.buy(); toast("Reklamsız paket aktif."); refresh(true); renderShop(); } else sfx.no(); }
+  });
+  $("adclaim").addEventListener("click", adClaim);
+  window.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if (!$("worldmap").hidden) { closeWorldMap(); e.preventDefault(); }
+    else if (!$("shop").hidden && $("adview").hidden) closeShop();
+  });
+
+  /* ---------- olaylar ---------- */
+  $("panel").addEventListener("click", e => {
+    const sel = e.target.closest("[data-sel]"); if (sel) { selected = +sel.dataset.sel; refresh(true); return; }
+    const b = e.target.closest("[data-act]"); if (!b) return; const a = b.dataset.act;
+    if (a === "office") { openOffice(); return; }
+    const p = selected === null ? null : S.parcels[selected]; if (!p) return;
+    if (a === "buy") buy(p); else if (a === "scan") scan(p); else if (a === "sell") sell(p); else if (UPS[a]) upgrade(p, a);
+    else if (a === "digopen") dgOpen(p.id);
+  });
+  $("office-btn").addEventListener("click", openOffice);
+  $("turbo").addEventListener("click", turbo);
+  $("mute").addEventListener("click", () => { S.mute = !S.mute; refresh(); if (!S.mute) sfx.coin(); });
+  $("speed").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; speed = +b.dataset.s; [...$("speed").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
+  let armed = false;
+  $("reset").addEventListener("click", () => {
+    const b = $("reset");
+    if (!armed) { armed = true; b.textContent = "Emin misin? Tekrar bas"; setTimeout(() => { armed = false; b.textContent = "Sıfırla"; }, 3000); return; }
+    armed = false; b.textContent = "Sıfırla"; S = newWorld(); refreshOffers(); selected = null; tv = 0; floats.length = 0; save(); buildBG(); refresh(true);
+  });
+  new ResizeObserver(() => { if (S) buildBG(); }).observe(cv);
+
+  /* ---------- başlat ---------- */
+  S = load() || newWorld();
+  S.shop = Object.assign({ owned: {}, equip: {}, ads: 0, adAt: 0, noAds: false }, S.shop);
+  S.digStats = Object.assign({ runs: 0, wins: 0, best: 0, net: 0 }, S.digStats); S.digHist = S.digHist || [];
+  delete S.dig; delete S.digAuto;
+  if (!S.offers || !S.offers.length || S.t >= S.offerUntil) refreshOffers();
+  const away = Math.min(900, Math.floor((Date.now() - (S.saved || Date.now())) / 1000));
+  if (away > 20) { const before = S.wallet; for (let i = 0; i < away; i++) tick(); const gain = S.wallet - before; log(`Sen yokken ${away} sn geçti: bakiye ${sgn(gain)}.`, gain >= 0 ? "pos" : "neg"); }
+  S.chapter = S.chapter || 0;
+  S.maxChapter = Math.max(S.maxChapter || 0, S.chapter);
+  S.chapterClearPending = !!S.chapterClearPending;
+  tv = S.t; buildBG(); applyMapSkin(); applyChapterTheme(); refresh(true);
+  (function loop(ms) { draw(ms / 1000); requestAnimationFrame(loop); })(0);
+  setInterval(() => {
+    for (let i = 0; i < speed; i++) tick();
+    refresh(false);
+    if (!$("office").hidden) renderOffice();
+    if (!$("shop").hidden) renderShop();
+    if (Date.now() - lastSave > 5000) { lastSave = Date.now(); save(); }
+  }, 1000);
+  window.addEventListener("pagehide", () => { [1, 2].forEach(i => dgCancel(i)); save(); });
+  DG.open = true; dgFill(); dgCountdown(); dgStart();
+  window.__pm = { get S() { return S; }, get DG() { return DG; } };
+})();
+</script>
+
+</body></html>
